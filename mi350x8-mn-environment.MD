@@ -137,8 +137,203 @@ rdma link
 ping xxx 
 ```
 
+## Single Node Check - Details
 
+```
+root@rs-mi350x8-mn-test1:~# uname -r
+6.8.0-106-generic
 
+root@rs-mi350x8-mn-test1:~# cat /etc/os-release
+PRETTY_NAME="Ubuntu 24.04.3 LTS"
+NAME="Ubuntu"
+VERSION_ID="24.04"
+VERSION="24.04.3 LTS (Noble Numbat)"
+VERSION_CODENAME=noble
+ID=ubuntu
+ID_LIKE=debian
+HOME_URL="https://www.ubuntu.com/"
+SUPPORT_URL="https://help.ubuntu.com/"
+BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+UBUNTU_CODENAME=noble
+LOGO=ubuntu-logo
+
+root@rs-mi350x8-mn-test1:~# dkms status
+amdgpu/6.14.14-2226257.24.04, 6.8.0-106-generic, x86_64: installed
+amdgpu/6.14.14-2226257.24.04, 6.8.0-110-generic, x86_64: installed
+ionic/25.08.4.004, 6.8.0-106-generic, x86_64: installed
+ionic/25.08.4.004, 6.8.0-110-generic, x86_64: installed
+mlnx-ofed-kernel/24.10.OFED.24.10.3.2.5.1, 6.8.0-106-generic, x86_64: installed
+mlnx-ofed-kernel/24.10.OFED.24.10.3.2.5.1, 6.8.0-110-generic, x86_64: installed
+
+root@rs-mi350x8-mn-test1:~# amd-smi version
+AMDSMI Tool: 26.0.2+39589fda | AMDSMI Library version: 26.0.2 | ROCm version: 7.0.2 | amdgpu version: 6.14.14 | amd_hsmp version: N/A
+
+root@rs-mi350x8-mn-test1:~# amd-metrics-exporter --version
+Version : v1.4.0-31
+BuildDate: 2025-10-03T05:40:37-0700
+GitCommit: fe12ca42
+Deployment: debian package deployment
+
+root@rs-mi350x8-mn-test1:~# amd-smi firmware 
+GPU: 0
+    FW_LIST:
+        FW 0:
+            FW_ID: CP_MEC1
+            FW_VERSION: 34
+        FW 1:
+            FW_ID: CP_MEC2
+            FW_VERSION: 34
+        FW 2:
+            FW_ID: RLC
+            FW_VERSION: 42
+        FW 3:
+            FW_ID: SDMA0
+            FW_VERSION: 12
+        FW 4:
+            FW_ID: SDMA1
+            FW_VERSION: 12
+        FW 5:
+            FW_ID: VCN
+            FW_VERSION: 09.10.90.11
+        FW 6:
+            FW_ID: RLC_RESTORE_LIST_GPM_MEM
+            FW_VERSION: 4
+        FW 7:
+            FW_ID: RLC_RESTORE_LIST_SRM_MEM
+            FW_VERSION: 4
+        FW 8:
+            FW_ID: RLC_RESTORE_LIST_CNTL
+            FW_VERSION: 4
+        FW 9:
+            FW_ID: TA_RAS
+            FW_VERSION: 1B.45.00.09
+        FW 10:
+            FW_ID: TA_XGMI
+            FW_VERSION: 20.00.00.14
+        FW 11:
+            FW_ID: PM
+            FW_VERSION: 04.86.15.106
+        FW 12:
+            FW_ID: PLDM_BUNDLE
+            FW_VERSION: 01.25.17.07
+GPU: 1
+
+root@rs-mi350x8-mn-test1:~# amd-smi
++------------------------------------------------------------------------------+
+| AMD-SMI 26.0.2+39589fda      amdgpu version: 6.14.14  ROCm version: 7.0.2    |
+| Platform: Linux Guest                                                        |
+|-------------------------------------+----------------------------------------|
+| BDF                        GPU-Name | Mem-Uti   Temp   UEC       Power-Usage |
+| GPU  HIP-ID  OAM-ID  Partition-Mode | GFX-Uti    Fan               Mem-Usage |
+|=====================================+========================================|
+| 0000:83:00.0 AMD Instinct MI350X VF | 0 %      60 °C   0          268/1000 W |
+|   0       0       6        SPX/NPS1 | 11 %       N/A           285/294592 MB |
+|-------------------------------------+----------------------------------------|
+| 0000:8b:00.0 AMD Instinct MI350X VF | 0 %      63 °C   0          265/1000 W |
+|   1       1       7        SPX/NPS1 | 9 %        N/A           285/294592 MB |
+|-------------------------------------+----------------------------------------|
+| 0000:93:00.0 AMD Instinct MI350X VF | 0 %      60 °C   0          268/1000 W |
+|   2       2       5        SPX/NPS1 | 9 %        N/A           285/294592 MB |
+|-------------------------------------+----------------------------------------|
+| 0000:9b:00.0 AMD Instinct MI350X VF | 0 %      65 °C   0          267/1000 W |
+|   3       3       4        SPX/NPS1 | 11 %       N/A           285/294592 MB |
+|-------------------------------------+----------------------------------------|
+| 0000:a3:00.0 AMD Instinct MI350X VF | 0 %      61 °C   0          266/1000 W |
+|   4       4       2        SPX/NPS1 | 9 %        N/A           285/294592 MB |
+|-------------------------------------+----------------------------------------|
+| 0000:ab:00.0 AMD Instinct MI350X VF | 0 %      65 °C   0          271/1000 W |
+|   5       5       3        SPX/NPS1 | 9 %        N/A           285/294592 MB |
+|-------------------------------------+----------------------------------------|
+| 0000:b3:00.0 AMD Instinct MI350X VF | 0 %      60 °C   0          261/1000 W |
+|   6       6       1        SPX/NPS1 | 11 %       N/A           285/294592 MB |
+|-------------------------------------+----------------------------------------|
+| 0000:bb:00.0 AMD Instinct MI350X VF | 0 %      63 °C   0          257/1000 W |
+|   7       7       0        SPX/NPS1 | 0 %        N/A           285/294592 MB |
++-------------------------------------+----------------------------------------+
++------------------------------------------------------------------------------+
+| Processes:                                                                   |
+|  GPU        PID  Process Name          GTT_MEM  VRAM_MEM  MEM_USAGE     CU % |
+|==============================================================================|
+|    0       4236  N/A                     0.0 B     0.0 B      0.0 B    0.0 % |
+|    1       4236  N/A                     0.0 B     0.0 B      0.0 B    0.0 % |
+|    2       4236  N/A                     0.0 B     0.0 B      0.0 B    0.0 % |
+|    3       4236  N/A                     0.0 B     0.0 B      0.0 B    0.0 % |
+|    4       4236  N/A                     0.0 B     0.0 B      0.0 B    0.0 % |
+|    5       4236  N/A                     0.0 B     0.0 B      0.0 B    0.0 % |
+|    6       4236  N/A                     0.0 B     0.0 B      0.0 B    0.0 % |
+|    7       4236  N/A                     0.0 B     0.0 B      0.0 B    0.0 % |
++------------------------------------------------------------------------------+
+Process Name may require elevated permissions.
+
+root@rs-mi350x8-mn-test1:~# rocm-smi
+============================================ ROCm System Management Interface ============================================
+====================================================== Concise Info ======================================================
+Device  Node  IDs              Temp        Power     Partitions          SCLK   MCLK     Fan  Perf  PwrCap   VRAM%  GPU%  
+              (DID,     GUID)  (Junction)  (Socket)  (Mem, Compute, ID)                                                   
+==========================================================================================================================
+0       2     0x75b0,   29921  60.0°C      268.0W    NPS1, SPX, 0        38Mhz  2000Mhz  0%   auto  1000.0W  0%     11%   
+1       3     0x75b0,   45798  63.0°C      265.0W    NPS1, SPX, 0        38Mhz  2000Mhz  0%   auto  1000.0W  0%     9%    
+2       4     0x75b0,   47340  60.0°C      268.0W    NPS1, SPX, 0        37Mhz  2000Mhz  0%   auto  1000.0W  0%     9%    
+3       5     0x75b0,   32491  65.0°C      266.0W    NPS1, SPX, 0        38Mhz  2000Mhz  0%   auto  1000.0W  0%     11%   
+4       6     0x75b0,   44280  61.0°C      266.0W    NPS1, SPX, 0        38Mhz  2000Mhz  0%   auto  1000.0W  0%     9%    
+5       7     0x75b0,   27391  65.0°C      270.0W    NPS1, SPX, 0        38Mhz  2000Mhz  0%   auto  1000.0W  0%     9%    
+6       8     0x75b0,   24821  60.0°C      260.0W    NPS1, SPX, 0        46Mhz  2000Mhz  0%   auto  1000.0W  0%     11%   
+7       9     0x75b0,   42738  63.0°C      257.0W    NPS1, SPX, 0        38Mhz  2000Mhz  0%   auto  1000.0W  0%     0%    
+==========================================================================================================================
+================================================== End of ROCm SMI Log ===================================================
+
+root@rs-mi350x8-mn-test1:~# rocm-smi --showtopo
+============================ ROCm System Management Interface ============================
+================================ Weight between two GPUs =================================
+       GPU0         GPU1         GPU2         GPU3         GPU4         GPU5         GPU6         GPU7         
+GPU0   0            15           15           15           15           15           15           15           
+GPU1   15           0            15           15           15           15           15           15           
+GPU2   15           15           0            15           15           15           15           15           
+GPU3   15           15           15           0            15           15           15           15           
+GPU4   15           15           15           15           0            15           15           15           
+GPU5   15           15           15           15           15           0            15           15           
+GPU6   15           15           15           15           15           15           0            15           
+GPU7   15           15           15           15           15           15           15           0            
+================================= Hops between two GPUs ==================================
+       GPU0         GPU1         GPU2         GPU3         GPU4         GPU5         GPU6         GPU7         
+GPU0   0            1            1            1            1            1            1            1            
+GPU1   1            0            1            1            1            1            1            1            
+GPU2   1            1            0            1            1            1            1            1            
+GPU3   1            1            1            0            1            1            1            1            
+GPU4   1            1            1            1            0            1            1            1            
+GPU5   1            1            1            1            1            0            1            1            
+GPU6   1            1            1            1            1            1            0            1            
+GPU7   1            1            1            1            1            1            1            0            
+=============================== Link Type between two GPUs ===============================
+       GPU0         GPU1         GPU2         GPU3         GPU4         GPU5         GPU6         GPU7         
+GPU0   0            XGMI         XGMI         XGMI         XGMI         XGMI         XGMI         XGMI         
+GPU1   XGMI         0            XGMI         XGMI         XGMI         XGMI         XGMI         XGMI         
+GPU2   XGMI         XGMI         0            XGMI         XGMI         XGMI         XGMI         XGMI         
+GPU3   XGMI         XGMI         XGMI         0            XGMI         XGMI         XGMI         XGMI         
+GPU4   XGMI         XGMI         XGMI         XGMI         0            XGMI         XGMI         XGMI         
+GPU5   XGMI         XGMI         XGMI         XGMI         XGMI         0            XGMI         XGMI         
+GPU6   XGMI         XGMI         XGMI         XGMI         XGMI         XGMI         0            XGMI         
+GPU7   XGMI         XGMI         XGMI         XGMI         XGMI         XGMI         XGMI         0            
+======================================= Numa Nodes =======================================
+GPU[0]		: (Topology) Numa Node: 0
+GPU[0]		: (Topology) Numa Affinity: 0
+GPU[1]		: (Topology) Numa Node: 0
+GPU[1]		: (Topology) Numa Affinity: 0
+GPU[2]		: (Topology) Numa Node: 0
+GPU[2]		: (Topology) Numa Affinity: 0
+GPU[3]		: (Topology) Numa Node: 0
+GPU[3]		: (Topology) Numa Affinity: 0
+GPU[4]		: (Topology) Numa Node: 1
+GPU[4]		: (Topology) Numa Affinity: 1
+GPU[5]		: (Topology) Numa Node: 1
+GPU[5]		: (Topology) Numa Affinity: 1
+GPU[6]		: (Topology) Numa Node: 1
+GPU[6]		: (Topology) Numa Affinity: 1
+GPU[7]		: (Topology) Numa Node: 1
+GPU[7]		: (Topology) Numa Affinity: 1
+================================== End of ROCm SMI Log ===================================
+```
 
 
 
