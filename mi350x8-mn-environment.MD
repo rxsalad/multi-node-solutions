@@ -1,12 +1,12 @@
 # Multi-Node Environment Setup for MI350x8 GPU Droplets
 
-This guide provides a basic introduction and step-by-step instructions for setting up an environment for multi-node testing and applications using MI350x8 GPU Droplets.
+This guide provides a basic introduction and step-by-step instructions for manually setting up a multi-node environment for testing and applications using MI350x8 GPU Droplets.
 
 ## GPU Network Introduction
 
 All droplets have Internet access via `eth0` at 10 Gb/s and VPC connectivity via `eth1` at 25 Gb/s, while the GPU network supports inter-node GPU-to-GPU communication via [RDMA/RoCE](https://instinct.docs.amd.com/projects/gpu-cluster-networking/en/latest/how-to/roce-network-config.html) for distributed training and inference workloads.
 
-A single GPU Fabric can support up to 122 homogeneous nodes after reserving 6 nodes as spares. These nodes can be shared across multiple customers, with VLANs used to isolate and segregate their traffic.
+A single GPU Fabric can support up to 122 homogeneous nodes (MI325x8 or MI350x8) after reserving 6 nodes as spares. These nodes can be assigned across multiple customers, with VLANs used to isolate and segregate their traffic.
 
 The GPU Fabric is rail-only at the moment and consists of 8 independent forwarding planes. Each plane connects at 400 Gb/s to [an NVIDIA Mellanox ConnectX-7 NIC](https://instinct.docs.amd.com/projects/system-acceptance/en/latest/network/nic-installation.html#nvidia-mellanox-cx-7-400gx1) on MI325x8 node or [an AMD Pensando Pollara NIC](https://instinct.docs.amd.com/projects/system-acceptance/en/latest/network/nic-installation.html#amd-pensando-pollara-400-ai-nic) on MI350X nodes. NICs across different planes are isolated and cannot communicate with each other.
 
@@ -132,6 +132,9 @@ ibv_devinfo -v | grep GID
 
 # Displays the mapping between RDMA devices and network interfaces along with link status
 rdma link
+
+# Ping the IPs of the remote eth0/eth1/eth2~9 interfaces.
+ping xxx 
 ```
 
 
