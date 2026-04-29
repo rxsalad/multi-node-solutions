@@ -137,7 +137,7 @@ rdma link
 ping xxx 
 ```
 
-## Single Node Check - Details
+## Node Verification – Details
 
 ```
 root@rs-mi350x8-mn-test1:~# uname -r
@@ -333,6 +333,63 @@ GPU[6]		: (Topology) Numa Affinity: 1
 GPU[7]		: (Topology) Numa Node: 1
 GPU[7]		: (Topology) Numa Affinity: 1
 ================================== End of ROCm SMI Log ===================================
+
+root@rs-mi350x8-mn-test1:~# ip -br a
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+eth0             UP             143.110.201.31/20 10.46.0.6/16 fe80::3421:dfff:fe4a:fabd/64 
+eth1             UP             10.120.0.9/20 fe80::2093:acff:fe3a:a885/64 
+eth2             UP             192.168.52.101/24 
+eth3             UP             192.168.53.101/24 
+eth4             UP             192.168.54.101/24 
+eth5             UP             192.168.55.101/24 
+eth6             UP             192.168.56.101/24 
+eth7             UP             192.168.57.101/24 
+eth8             UP             192.168.58.101/24 
+eth9             UP             192.168.59.101/24 
+docker0          DOWN           172.17.0.1/16 fe80::e445:36ff:fe8d:92ec/64
+
+root@rs-mi350x8-mn-test1:~# ls /sys/class/infiniband/ 
+ionic_0  ionic_1  ionic_2  ionic_3  ionic_4  ionic_5  ionic_6  ionic_7
+
+root@rs-mi350x8-mn-test1:~# ibv_devices
+    device          	   node GUID
+    ------          	----------------
+    ionic_0         	049081fffe49af10
+    ionic_1         	049081fffe499578
+    ionic_2         	049081fffe499638
+    ionic_3         	049081fffe49b198
+    ionic_4         	049081fffe499a70
+    ionic_5         	049081fffe4a6238
+    ionic_6         	049081fffe49c4d0
+    ionic_7         	049081fffe4a6328
+
+root@rs-mi350x8-mn-test1:~# ibv_devinfo -v | grep GID
+			GID[  0]:		fe80::490:81ff:fe49:af10, RoCE v2
+			GID[  1]:		::ffff:192.168.52.101, RoCE v2
+			GID[  0]:		fe80::490:81ff:fe49:9578, RoCE v2
+			GID[  1]:		::ffff:192.168.53.101, RoCE v2
+			GID[  0]:		fe80::490:81ff:fe49:9638, RoCE v2
+			GID[  1]:		::ffff:192.168.54.101, RoCE v2
+			GID[  0]:		fe80::490:81ff:fe49:b198, RoCE v2
+			GID[  1]:		::ffff:192.168.55.101, RoCE v2
+			GID[  0]:		fe80::490:81ff:fe49:9a70, RoCE v2
+			GID[  1]:		::ffff:192.168.56.101, RoCE v2
+			GID[  0]:		fe80::490:81ff:fe4a:6238, RoCE v2
+			GID[  1]:		::ffff:192.168.57.101, RoCE v2
+			GID[  0]:		fe80::490:81ff:fe49:c4d0, RoCE v2
+			GID[  1]:		::ffff:192.168.58.101, RoCE v2
+			GID[  0]:		fe80::490:81ff:fe4a:6328, RoCE v2
+			GID[  1]:		::ffff:192.168.59.101, RoCE v2
+
+root@rs-mi350x8-mn-test1:~# rdma link
+link ionic_0/1 state ACTIVE physical_state LINK_UP netdev eth2 
+link ionic_1/1 state ACTIVE physical_state LINK_UP netdev eth3 
+link ionic_2/1 state ACTIVE physical_state LINK_UP netdev eth4 
+link ionic_3/1 state ACTIVE physical_state LINK_UP netdev eth5 
+link ionic_4/1 state ACTIVE physical_state LINK_UP netdev eth6 
+link ionic_5/1 state ACTIVE physical_state LINK_UP netdev eth7 
+link ionic_6/1 state ACTIVE physical_state LINK_UP netdev eth8 
+link ionic_7/1 state ACTIVE physical_state LINK_UP netdev eth9 
 ```
 
 
