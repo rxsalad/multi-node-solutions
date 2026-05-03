@@ -1,0 +1,86 @@
+
+
+SYSTEM: CPU + MEMORY + PCIe + XGMI FABRIC (NUMA-aware)
+
+================================================================================
+                              NUMA0 (Socket 0)
+================================================================================
+
+  CPU SOCKET 0
+    ├── Cores (0–??)
+    ├── LLC
+    └── Memory Controller
+          └── Local DRAM (NUMA0)
+
+  PCIe ROOT COMPLEX (NUMA0)
+    ├── Root Port 0x80 ── PCIe Switch ──┬── GPU0
+    │                                   └── NIC0
+    ├── Root Port 0x88 ── PCIe Switch ──┬── GPU1
+    │                                   └── NIC1
+    ├── Root Port 0x90 ── PCIe Switch ──┬── GPU2
+    │                                   └── NIC2
+    └── Root Port 0x98 ── PCIe Switch ──┬── GPU3
+                                        └── NIC3
+
+
+================================================================================
+                              NUMA1 (Socket 1)
+================================================================================
+
+  CPU SOCKET 1
+    ├── Cores (??–??)
+    ├── LLC
+    └── Memory Controller
+          └── Local DRAM (NUMA1)
+
+  PCIe ROOT COMPLEX (NUMA1)
+    ├── Root Port 0xa0 ── PCIe Switch ──┬── GPU4
+    │                                   └── NIC4
+    ├── Root Port 0xa8 ── PCIe Switch ──┬── GPU5
+    │                                   └── NIC5
+    ├── Root Port 0xb0 ── PCIe Switch ──┬── GPU6
+    │                                   └── NIC6
+    └── Root Port 0xb8 ── PCIe Switch ──┬── GPU7
+                                        └── NIC7
+
+
+================================================================================
+                       NUMA INTERCONNECT (CPU ↔ CPU)
+================================================================================
+
+        NUMA0  ⇄⇄⇄⇄⇄⇄⇄⇄⇄⇄⇄  NUMA1
+          │
+          ├── Cache coherency (snoop / directory)
+          ├── Remote DRAM access (NUMA penalty)
+          ├── PCIe fallback routing (cross-socket)
+          └── Control-plane / driver coordination
+
+
+================================================================================
+                    AMD XGMI FABRIC (FULL GPU MESH)
+================================================================================
+
+   Physical intuition (dense mesh):
+
+        GPU0 ═══ GPU1 ═══ GPU2 ═══ GPU3
+         ║ ╲      ║ ╲      ║ ╲      ║
+         ║  ╲     ║  ╲     ║  ╲     ║
+         ║   ╲    ║   ╲    ║   ╲    ║
+        GPU4 ═══ GPU5 ═══ GPU6 ═══ GPU7
+
+
+   Logical topology (all-to-all connectivity):
+
+        GPU0 ─┬─ GPU1 ─┬─ GPU2 ─┬─ GPU3
+          │   │    │   │    │   │
+          ├───┼────┼───┼────┼───┤
+          │   │    │   │    │   │
+        GPU4 ─┴─ GPU5 ─┴─ GPU6 ─┴─ GPU7
+
+
+   Key properties:
+     • Direct GPU↔GPU (bypasses PCIe and CPU)
+     • Cross-NUMA GPU traffic uses XGMI, not UPI/IF
+     • Deterministic high bandwidth (collective-friendly)
+     • Much lower latency vs PCIe peer or host staging
+     • Critical for RCCL/NCCL ring/tree performance
