@@ -1,5 +1,7 @@
 # Multi-Node RCCL Testing for MI350x8 GPU Droplets
 
+Follow [the guide](mi350x8-mn-environment.MD) to prepare the environment before proceeding.
+
 This guide provides a basic introduction and step-by-step instructions for manually performing RCCL testing in a multi-node MI350x8 GPU droplet environment.
 
 ## Test Environment
@@ -29,7 +31,7 @@ GPU Firmware: 01.25.17.07
 
 ## OpenMPI Installation and Configuration
 
-[OpenMPI](https://www.open-mpi.org/) is an implementation of [the MPI standard](https://www.mpi-forum.org/) that provides runtime tools (such as mpirun) for launching distributed applications, as well as communication libraries for coordinating processes across multiple nodes. For RCCL testing, OpenMPI is used strictly as a launch and coordination layer across nodes, while all GPU-to-GPU communication is handled entirely by RCCL.
+[OpenMPI](https://www.open-mpi.org/) is an implementation of [the MPI standard](https://www.mpi-forum.org/) that provides runtime tools (such as mpirun) for launching distributed applications, as well as communication libraries for coordinating processes across multiple nodes. Although it supports CPU-based collective communication, for RCCL testing, OpenMPI is used strictly as a launch and coordination layer across nodes, while all GPU-to-GPU communication is handled entirely by RCCL.
 
 Install OpenMPI on each GPU droplet:
 ```
