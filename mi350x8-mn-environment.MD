@@ -10,6 +10,8 @@ A single GPU Fabric can support up to 122 homogeneous nodes (MI325x8 or MI350x8)
 
 The GPU Fabric is rail-only at the moment and consists of 8 independent forwarding planes. Each plane connects at 400 Gb/s to [an NVIDIA Mellanox ConnectX-7 NIC](https://instinct.docs.amd.com/projects/system-acceptance/en/latest/network/nic-installation.html#nvidia-mellanox-cx-7-400gx1) on MI325x8 node or [an AMD Pensando Pollara NIC](https://instinct.docs.amd.com/projects/system-acceptance/en/latest/network/nic-installation.html#amd-pensando-pollara-400-ai-nic) on MI350X nodes. NICs across different planes are isolated and cannot communicate with each other.
 
+**GPU Network with MI350x8 nodes:**
+
 <img src="mi350x8-mn/mi350x8-mn-droplet.png" alt="GPU Network" width="800" height="400"/>
 
 The 8 RDMA/RoCE NICs in GPU Droplets are configured and managed as `eth2–eth9`. We must define 8 IP address segments—one per forwarding plane—and assign a unique IP from the correct segment to each NIC, as misconfiguration can easily cause issues. 
@@ -393,6 +395,15 @@ link ionic_7/1 state ACTIVE physical_state LINK_UP netdev eth9
 ```
 
 
+## Documentation and Resources
 
+- [AMD Instinct Data Center GPU](https://instinct.docs.amd.com/latest/)
+- [AMD Instinct Customer Acceptance Guide](https://instinct.docs.amd.com/projects/system-acceptance/en/latest/index.html)
+- [AMD Instinct Virtualization Driver](https://instinct.docs.amd.com/projects/virt-drv/en/latest/index.html)
+- [Cluster Network Performance Validation](https://instinct.docs.amd.com/projects/gpu-cluster-networking/en/latest/index.html)
 
+- [RCCL environment variables](https://rocm.docs.amd.com/projects/rccl/en/develop/api-reference/env-variables.html#rccl-environment-variables)
+- [ROCm environment variables](https://rocm.docs.amd.com/en/latest/reference/env-variables.html)
+
+- [How to Configure Multi-Node GPU Droplets](https://docs.digitalocean.com/products/droplets/how-to/gpu/configure-multi-node/)
 
