@@ -400,8 +400,8 @@ rccl-tests: Version develop_deprecated:40b1b17
 # Collective test concluded: all_reduce_perf
 ```
 
+**Note:** You may see the following warning in the debug logs:
 
+`NCCL WARN Missing "iommu=pt" from kernel command line which can lead to system instability or hangs!`
 
-
-
-
+This warning is not relevant when the bare metal host uses SR-IOV to expose GPUs to VMs (for example, GPU Droplets). AMD plans to [suppress this warning](https://github.com/ROCm/rccl/pull/2112) in newer RCCL versions.
