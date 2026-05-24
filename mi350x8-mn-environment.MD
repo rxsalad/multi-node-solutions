@@ -137,6 +137,7 @@ rdma link
 
 # Ping the IPs of the remote eth0/eth1/eth2~9 interfaces.
 ping xxx 
+for i in {2..9}; do ping -c 1 192.168.5${i}.102; done
 ```
 
 ## Node Verification – Details
