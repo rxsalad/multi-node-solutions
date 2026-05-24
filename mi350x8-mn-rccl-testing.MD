@@ -197,6 +197,35 @@ The communication is typically handled by RCCL for AMD GPUs and carried over:
 - XGMI for high-bandwidth intra-node GPU communication
 - RoCE (RDMA over Converged Ethernet) for low-latency inter-node GPU communication
 
+### Example
+
+Assume GPU 1 and GPU 2 are located in Node1 and connected through XGMI, while GPU 3 and GPU 4 are located in Node2 and also connected through XGMI. Node1 and Node2 are interconnected using 8 × 400GbE RoCE links. In this setup, how does all-reduce traffic flow across the 8 × 400GbE links?
+
+The system uses a hierarchical ring all-reduce communication pattern.
+
+First, intra-node communication happens over XGMI, where GPU1 and GPU2 form a local segment of the ring and perform reduction, and GPU3 and GPU4 do the same on Node2. This stage aggregates data locally using the high-bandwidth XGMI fabric and minimizes inter-node network traffic.
+
+Then the system forms a logical global ring across all 4 GPUs, for example:
+
+`GPU1 → GPU2 → GPU3 → GPU4 → GPU1`
+
+In this ring:
+- The GPU1 ↔ GPU2 step stays inside Node1 (XGMI)
+- The GPU3 ↔ GPU4 step stays inside Node2 (XGMI)
+- The GPU2 ↔ GPU3 step crosses Node1 ↔ Node2 over RoCE
+- The GPU4 ↔ GPU1 step crosses Node2 ↔ Node1 over RoCE
+
+During the inter-node phases of the ring all-reduce, only the intermediate reduced data is exchanged between the nodes. The data is divided into multiple chunks (ring segments), and these chunks are distributed across all 8 × 400GbE RoCE links simultaneously using multiple RDMA channels, commonly referred to as multi-rail communication.
+
+As a result:
+
+- Different chunks of the all-reduce traffic flow over different 400GbE links in parallel
+- All 8 links contribute bandwidth concurrently
+- Cross-node communication bandwidth is aggregated across the entire network fabric
+- No single link becomes a communication bottleneck
+
+Finally, after the reduce-scatter and all-gather phases complete, every GPU holds the fully reduced tensor. Any remaining synchronization within each node again uses XGMI.
+
 ## Single Node RCCL Testing
 
 This test evaluates the performance of 8 AMD MI350X GPUs within `rs-mi350x8-mn-test1` executing an all-reduce operation on a 16 GiB tensor per GPU using RCCL:
