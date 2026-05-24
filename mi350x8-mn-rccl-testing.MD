@@ -405,3 +405,45 @@ rccl-tests: Version develop_deprecated:40b1b17
 `NCCL WARN Missing "iommu=pt" from kernel command line which can lead to system instability or hangs!`
 
 This warning is not relevant when the bare metal host uses SR-IOV to expose GPUs to VMs (for example, GPU Droplets). AMD plans to [suppress this warning](https://github.com/ROCm/rccl/pull/2112) in newer RCCL versions.
+
+
+
+## RCCL Environment Variables
+
+For the best performance with multi-node applications or RCCL benchmarks, additional GPU- and network-specific configuration must be provided through [RCCL environment variables](https://rocm.docs.amd.com/projects/rccl/en/develop/api-reference/env-variables.html) in `/etc/rccl.conf`:
+
+
+```
+# TCP socket interface used for NCCL bootstrap/control-plane communication and as a fallback transport when RDMA/RoCE is unavailable
+NCCL_SOCKET_IFNAME=eth1
+
+# Enforce rail-aligned communication by preferring the same NIC index across all nodes within a ring/tree
+NCCL_CROSS_NIC=0
+
+# Allow GPUs to route inter-node traffic through a GPU/NIC pair with better local NUMA/topology affinity
+NCCL_PXN_DISABLE=0
+
+# Disable network transport for intra-node communication so local GPU traffic stays on XGMI instead of using RDMA/RoCE
+NCCL_NET_DISABLE_INTRA=1
+
+# Select the RDMA/RoCE GID entry used by RCCL: the correct value may vary by NIC type
+# Example discovery command: ibv_devinfo -v | grep GID
+NCCL_IB_GID_INDEX=1
+
+# Configure QoS/DSCP traffic classes for RDMA/RoCE traffic to align with the underlying GPU fabric's QoS policies:
+# NCCL_IB_TC applies to bulk data traffic
+# NCCL_IB_FIFO_TC applies to latency-sensitive control/FIFO traffic
+NCCL_IB_TC=104
+NCCL_IB_FIFO_TC=192
+```
+
+
+## Documentation and Resources
+
+- [RCCL Benchmarking](https://instinct.docs.amd.com/projects/system-acceptance/en/latest/common/rccl-benchmarking.html)
+
+- [RCCL environment variables](https://rocm.docs.amd.com/projects/rccl/en/develop/api-reference/env-variables.html#rccl-environment-variables)
+
+- [NCCL environment variables](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html)
+
+- [Configure RCCL](https://docs.digitalocean.com/products/droplets/how-to/gpu/configure-multi-node/#configure-nccl-or-rccl)
