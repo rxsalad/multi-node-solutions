@@ -309,7 +309,7 @@ This test from `rs-mi350x8-mn-test1` evaluates a 16-GPU distributed all-reduce a
 - The two-node configuration shows a clear performance drop compared to the single-node case (algbw, 17.179869184 GB / 0.088766 s = 193.54 GB/s; busbw, 17.179869184 GB * 2 * 15/16 / 0.088766 s = 362.89 GB/s ). This degradation is primarily attributed to the added latency and lower efficiency of the RDMA-based inter-node hops relative to XGMI, despite NIC-level parallelism across 8×400GbE links.
 
 ```
-root@rs-mi350x8-mn-test1:~/rccl-tests# mpirun --allow-run-as-root \
+root@rs-mi350x8-mn-test1:~/rccl-tests# NCCL_DEBUG=INFO mpirun --allow-run-as-root \
  --np 16 -H 10.120.0.9:8,10.120.0.10:8 \
   --bind-to none --mca btl self,tcp \
   --mca btl_tcp_if_include eth1 /root/rccl-tests/build/all_reduce_perf -b 16G -e 16G -g 1
@@ -349,7 +349,7 @@ rccl-tests: Version develop_deprecated:40b1b17
 This test from `rs-mi350x8-mn-test1` shows how RCCL all-reduce performance scales with message size on a 16-GPU, two-node setup. At small message sizes (e.g., 1–16 MB), performance is low and primarily limited by latency from kernel launches and inter-node communication. As message size increases, bandwidth improves rapidly, reflecting better utilization of the GPUs, XGMI, and RDMA interconnects. 
 
 ```
-root@rs-mi350x8-mn-test1:~/rccl-tests#  mpirun --allow-run-as-root \
+root@rs-mi350x8-mn-test1:~/rccl-tests# NCCL_DEBUG=INFO mpirun --allow-run-as-root \
  --np 16 -H 10.120.0.9:8,10.120.0.10:8 \
   --bind-to none --mca btl self,tcp \
   --mca btl_tcp_if_include eth1 /root/rccl-tests/build/all_reduce_perf -b 1M -e 16G -f 2 -g 1
@@ -415,24 +415,30 @@ For the best performance with multi-node applications or RCCL benchmarks, additi
 
 ```
 # TCP socket interface used for NCCL bootstrap/control-plane communication and as a fallback transport when RDMA/RoCE is unavailable
+
 NCCL_SOCKET_IFNAME=eth1
 
 # Enforce rail-aligned communication by preferring the same NIC index across all nodes within a ring/tree
+
 NCCL_CROSS_NIC=0
 
 # Allow GPUs to route inter-node traffic through a GPU/NIC pair with better local NUMA/topology affinity
+
 NCCL_PXN_DISABLE=0
 
 # Disable network transport for intra-node communication so local GPU traffic stays on XGMI instead of using RDMA/RoCE
+
 NCCL_NET_DISABLE_INTRA=1
 
 # Select the RDMA/RoCE GID entry used by RCCL: the correct value may vary by NIC type
 # Example discovery command: ibv_devinfo -v | grep GID
+
 NCCL_IB_GID_INDEX=1
 
 # Configure QoS/DSCP traffic classes for RDMA/RoCE traffic to align with the underlying GPU fabric's QoS policies:
 # NCCL_IB_TC applies to bulk data traffic
 # NCCL_IB_FIFO_TC applies to latency-sensitive control/FIFO traffic
+
 NCCL_IB_TC=104
 NCCL_IB_FIFO_TC=192
 ```
