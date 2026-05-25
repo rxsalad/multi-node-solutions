@@ -408,6 +408,21 @@ root@rs-mi350x8-mn-test2:~/rdma-perftest# ./ib_write_bw --use_rocm=7 -d ionic_0 
 root@rs-mi350x8-mn-test1:~/rdma-perftest# ./ib_write_bw --use_rocm=7 -d ionic_0 -s 4194304 -m 4096 -q 4 --report_gbits 10.120.0.10
 ```
 
+To run the same tests on MI325x8 nodes, use the following commands:
+
+```
+# rs-mi325x8-mn-test1 (10.118.0.10)
+# rs-mi325x8-mn-test2 (10.118.0.13)
+
+root@rs-mi325x8-mn-test2:~/rdma-perftest# ./ib_write_bw --use_rocm=0 -d mlx5_0 -s 4194304 -m 4096 -q 4 --report_gbits
+root@rs-mi325x8-mn-test1:~/rdma-perftest# ./ib_write_bw --use_rocm=0 -d mlx5_0 -s 4194304 -m 4096 -q 4 --report_gbits 10.118.0.13
+
+root@rs-mi325x8-mn-test2:~/rdma-perftest# ./ib_write_bw --use_rocm=0 -d mlx5_0 -s 4194304 -m 4096 -q 4 --report_gbits
+root@rs-mi325x8-mn-test1:~/rdma-perftest# ./ib_write_bw --use_rocm=7 -d mlx5_0 -s 4194304 -m 4096 -q 4 --report_gbits 10.118.0.13
+
+root@rs-mi325x8-mn-test2:~/rdma-perftest# ./ib_write_bw --use_rocm=7 -d mlx5_0 -s 4194304 -m 4096 -q 4 --report_gbits
+root@rs-mi325x8-mn-test1:~/rdma-perftest# ./ib_write_bw --use_rocm=7 -d mlx5_0 -s 4194304 -m 4096 -q 4 --report_gbits 10.118.0.13
+```
 
 #### Summary
 
