@@ -47,10 +47,13 @@ doctl vpcs list
 # Get the current default AI/ML image for AMD GPU Droplets 
 doctl compute image list --public | grep AMD | grep base
 
-
+# MI350x8 
 doctl compute droplet create rs-mi350x8-mn-test1 --image 221919586 --region sfo2 --size gpu-mi350x8-2304gb-fabric-contracted --enable-monitoring --ssh-keys 55531023
-
 doctl compute droplet create rs-mi350x8-mn-test2 --image 221919586 --region sfo2 --size gpu-mi350x8-2304gb-fabric-contracted --enable-monitoring --ssh-keys 55531023
+
+# MI325x8
+doctl compute droplet create rs-mi325x8-mn-test1 --image 221919586 --region tor1 --size gpu-mi325x8-2048gb-fabric-contracted --enable-monitoring --ssh-keys 55531023
+doctl compute droplet create rs-mi325x8-mn-test2 --image 221919586 --region tor1 --size gpu-mi325x8-2048gb-fabric-contracted --enable-monitoring --ssh-keys 55531023
 ```
 
 SSH into the droplets and perform a basic check:
@@ -140,7 +143,7 @@ ping xxx
 for i in {2..9}; do ping -c 1 192.168.5${i}.102; done
 ```
 
-## Node Verification – Details
+## Node Verification – Details (MI350x8)
 
 ```
 root@rs-mi350x8-mn-test1:~# uname -r
@@ -395,6 +398,274 @@ link ionic_6/1 state ACTIVE physical_state LINK_UP netdev eth8
 link ionic_7/1 state ACTIVE physical_state LINK_UP netdev eth9 
 ```
 
+## Node Verification – Details (MI325x8)
+
+```
+root@rs-mi325x8-mn-test1:~# uname -r
+6.8.0-106-generic
+
+root@rs-mi325x8-mn-test1:~# cat /etc/os-release
+PRETTY_NAME="Ubuntu 24.04.3 LTS"
+NAME="Ubuntu"
+VERSION_ID="24.04"
+VERSION="24.04.3 LTS (Noble Numbat)"
+VERSION_CODENAME=noble
+ID=ubuntu
+ID_LIKE=debian
+HOME_URL="https://www.ubuntu.com/"
+SUPPORT_URL="https://help.ubuntu.com/"
+BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+UBUNTU_CODENAME=noble
+LOGO=ubuntu-logo
+
+root@rs-mi325x8-mn-test1:~# dkms status
+amdgpu/6.14.14-2226257.24.04, 6.8.0-106-generic, x86_64: installed
+amdgpu/6.14.14-2226257.24.04, 6.8.0-71-generic, x86_64: installed
+ionic/25.08.4.004, 6.8.0-106-generic, x86_64: installed
+ionic/25.08.4.004, 6.8.0-71-generic, x86_64: installed
+mlnx-ofed-kernel/24.10.OFED.24.10.3.2.5.1, 6.8.0-106-generic, x86_64: installed
+mlnx-ofed-kernel/24.10.OFED.24.10.3.2.5.1, 6.8.0-71-generic, x86_64: installed
+
+root@rs-mi325x8-mn-test1:~# amd-smi version
+AMDSMI Tool: 26.0.2+39589fda | AMDSMI Library version: 26.0.2 | ROCm version: 7.0.2 | amdgpu version: 6.14.14 | amd_hsmp version: N/A
+
+root@rs-mi325x8-mn-test1:~# amd-metrics-exporter --version
+Version : v1.4.0-31
+BuildDate: 2025-10-03T05:40:37-0700
+GitCommit: fe12ca42
+Deployment: debian package deployment
+
+root@rs-mi325x8-mn-test1:~# amd-smi firmware 
+GPU: 0
+    FW_LIST:
+        FW 0:
+            FW_ID: CP_MEC1
+            FW_VERSION: 32957
+        FW 1:
+            FW_ID: CP_MEC2
+            FW_VERSION: 32957
+        FW 2:
+            FW_ID: RLC
+            FW_VERSION: 69
+        FW 3:
+            FW_ID: SDMA0
+            FW_VERSION: 24
+        FW 4:
+            FW_ID: SDMA1
+            FW_VERSION: 24
+        FW 5:
+            FW_ID: VCN
+            FW_VERSION: 09.11.70.09
+        FW 6:
+            FW_ID: RLC_RESTORE_LIST_GPM_MEM
+            FW_VERSION: 4
+        FW 7:
+            FW_ID: RLC_RESTORE_LIST_SRM_MEM
+            FW_VERSION: 4
+        FW 8:
+            FW_ID: RLC_RESTORE_LIST_CNTL
+            FW_VERSION: 4
+        FW 9:
+            FW_ID: TA_RAS
+            FW_VERSION: 1B.36.02.1A
+        FW 10:
+            FW_ID: TA_XGMI
+            FW_VERSION: 20.00.00.14
+        FW 11:
+            FW_ID: PM
+            FW_VERSION: 07.85.19.00
+        FW 12:
+            FW_ID: PLDM_BUNDLE
+            FW_VERSION: 00.00.199.159
+
+root@rs-mi325x8-mn-test1:~# amd-smi
++------------------------------------------------------------------------------+
+| AMD-SMI 26.0.2+39589fda      amdgpu version: 6.14.14  ROCm version: 7.0.2    |
+| Platform: Linux Guest                                                        |
+|-------------------------------------+----------------------------------------|
+| BDF                        GPU-Name | Mem-Uti   Temp   UEC       Power-Usage |
+| GPU  HIP-ID  OAM-ID  Partition-Mode | GFX-Uti    Fan               Mem-Usage |
+|=====================================+========================================|
+| 0000:83:00.0 AMD Instinct Mi325X VF | 0 %      50 °C   0          144/1000 W |
+|   0       0       6        SPX/NPS1 | 0 %        N/A           285/261824 MB |
+|-------------------------------------+----------------------------------------|
+| 0000:8b:00.0 AMD Instinct Mi325X VF | 0 %      52 °C   0          152/1000 W |
+|   1       1       7        SPX/NPS1 | 0 %        N/A           285/261824 MB |
+|-------------------------------------+----------------------------------------|
+| 0000:93:00.0 AMD Instinct Mi325X VF | 0 %      52 °C   0          149/1000 W |
+|   2       2       5        SPX/NPS1 | 0 %        N/A           285/261824 MB |
+|-------------------------------------+----------------------------------------|
+| 0000:9b:00.0 AMD Instinct Mi325X VF | 0 %      55 °C   0          157/1000 W |
+|   3       3       4        SPX/NPS1 | 0 %        N/A           285/261824 MB |
+|-------------------------------------+----------------------------------------|
+| 0000:a3:00.0 AMD Instinct Mi325X VF | 0 %      50 °C   0          140/1000 W |
+|   4       4       2        SPX/NPS1 | 0 %        N/A           285/261824 MB |
+|-------------------------------------+----------------------------------------|
+| 0000:ab:00.0 AMD Instinct Mi325X VF | 0 %      56 °C   0          157/1000 W |
+|   5       5       3        SPX/NPS1 | 0 %        N/A           285/261824 MB |
+|-------------------------------------+----------------------------------------|
+| 0000:b3:00.0 AMD Instinct Mi325X VF | 0 %      50 °C   0          144/1000 W |
+|   6       6       1        SPX/NPS1 | 0 %        N/A           285/261824 MB |
+|-------------------------------------+----------------------------------------|
+| 0000:bb:00.0 AMD Instinct Mi325X VF | 0 %      54 °C   0          151/1000 W |
+|   7       7       0        SPX/NPS1 | 0 %        N/A           285/261824 MB |
++-------------------------------------+----------------------------------------+
++------------------------------------------------------------------------------+
+| Processes:                                                                   |
+|  GPU        PID  Process Name          GTT_MEM  VRAM_MEM  MEM_USAGE     CU % |
+|==============================================================================|
+|    0       4081  N/A                     0.0 B     0.0 B      0.0 B    0.0 % |
+|    1       4081  N/A                     0.0 B     0.0 B      0.0 B    0.0 % |
+|    2       4081  N/A                     0.0 B     0.0 B      0.0 B    0.0 % |
+|    3       4081  N/A                     0.0 B     0.0 B      0.0 B    0.0 % |
+|    4       4081  N/A                     0.0 B     0.0 B      0.0 B    0.0 % |
+|    5       4081  N/A                     0.0 B     0.0 B      0.0 B    0.0 % |
+|    6       4081  N/A                     0.0 B     0.0 B      0.0 B    0.0 % |
+|    7       4081  N/A                     0.0 B     0.0 B      0.0 B    0.0 % |
++------------------------------------------------------------------------------+
+Process Name may require elevated permissions.
+
+root@rs-mi325x8-mn-test1:~# rocm-smi
+============================================ ROCm System Management Interface ============================================
+====================================================== Concise Info ======================================================
+Device  Node  IDs              Temp        Power     Partitions          SCLK    MCLK    Fan  Perf  PwrCap   VRAM%  GPU%  
+              (DID,     GUID)  (Junction)  (Socket)  (Mem, Compute, ID)                                                   
+==========================================================================================================================
+0       2     0x74b9,   43855  50.0°C      144.0W    NPS1, SPX, 0        132Mhz  900Mhz  0%   auto  1000.0W  0%     0%    
+1       3     0x74b9,   27976  52.0°C      151.0W    NPS1, SPX, 0        131Mhz  900Mhz  0%   auto  1000.0W  0%     0%    
+2       4     0x74b9,   26434  51.0°C      149.0W    NPS1, SPX, 0        132Mhz  900Mhz  0%   auto  1000.0W  0%     0%    
+3       5     0x74b9,   41285  55.0°C      155.0W    NPS1, SPX, 0        132Mhz  900Mhz  0%   auto  1000.0W  0%     0%    
+4       6     0x74b9,   29526  49.0°C      139.0W    NPS1, SPX, 0        132Mhz  900Mhz  0%   auto  1000.0W  0%     0%    
+5       7     0x74b9,   46417  55.0°C      155.0W    NPS1, SPX, 0        132Mhz  900Mhz  0%   auto  1000.0W  0%     0%    
+6       8     0x74b9,   48987  49.0°C      143.0W    NPS1, SPX, 0        133Mhz  900Mhz  0%   auto  1000.0W  0%     0%    
+7       9     0x74b9,   31068  53.0°C      151.0W    NPS1, SPX, 0        132Mhz  900Mhz  0%   auto  1000.0W  0%     0%    
+==========================================================================================================================
+================================================== End of ROCm SMI Log ===================================================
+
+root@rs-mi325x8-mn-test1:~# rocm-smi --showtopo
+============================ ROCm System Management Interface ============================
+================================ Weight between two GPUs =================================
+       GPU0         GPU1         GPU2         GPU3         GPU4         GPU5         GPU6         GPU7         
+GPU0   0            15           15           15           15           15           15           15           
+GPU1   15           0            15           15           15           15           15           15           
+GPU2   15           15           0            15           15           15           15           15           
+GPU3   15           15           15           0            15           15           15           15           
+GPU4   15           15           15           15           0            15           15           15           
+GPU5   15           15           15           15           15           0            15           15           
+GPU6   15           15           15           15           15           15           0            15           
+GPU7   15           15           15           15           15           15           15           0            
+================================= Hops between two GPUs ==================================
+       GPU0         GPU1         GPU2         GPU3         GPU4         GPU5         GPU6         GPU7         
+GPU0   0            1            1            1            1            1            1            1            
+GPU1   1            0            1            1            1            1            1            1            
+GPU2   1            1            0            1            1            1            1            1            
+GPU3   1            1            1            0            1            1            1            1            
+GPU4   1            1            1            1            0            1            1            1            
+GPU5   1            1            1            1            1            0            1            1            
+GPU6   1            1            1            1            1            1            0            1            
+GPU7   1            1            1            1            1            1            1            0            
+=============================== Link Type between two GPUs ===============================
+       GPU0         GPU1         GPU2         GPU3         GPU4         GPU5         GPU6         GPU7         
+GPU0   0            XGMI         XGMI         XGMI         XGMI         XGMI         XGMI         XGMI         
+GPU1   XGMI         0            XGMI         XGMI         XGMI         XGMI         XGMI         XGMI         
+GPU2   XGMI         XGMI         0            XGMI         XGMI         XGMI         XGMI         XGMI         
+GPU3   XGMI         XGMI         XGMI         0            XGMI         XGMI         XGMI         XGMI         
+GPU4   XGMI         XGMI         XGMI         XGMI         0            XGMI         XGMI         XGMI         
+GPU5   XGMI         XGMI         XGMI         XGMI         XGMI         0            XGMI         XGMI         
+GPU6   XGMI         XGMI         XGMI         XGMI         XGMI         XGMI         0            XGMI         
+GPU7   XGMI         XGMI         XGMI         XGMI         XGMI         XGMI         XGMI         0            
+======================================= Numa Nodes =======================================
+GPU[0]		: (Topology) Numa Node: 0
+GPU[0]		: (Topology) Numa Affinity: 0
+GPU[1]		: (Topology) Numa Node: 0
+GPU[1]		: (Topology) Numa Affinity: 0
+GPU[2]		: (Topology) Numa Node: 0
+GPU[2]		: (Topology) Numa Affinity: 0
+GPU[3]		: (Topology) Numa Node: 0
+GPU[3]		: (Topology) Numa Affinity: 0
+GPU[4]		: (Topology) Numa Node: 1
+GPU[4]		: (Topology) Numa Affinity: 1
+GPU[5]		: (Topology) Numa Node: 1
+GPU[5]		: (Topology) Numa Affinity: 1
+GPU[6]		: (Topology) Numa Node: 1
+GPU[6]		: (Topology) Numa Affinity: 1
+GPU[7]		: (Topology) Numa Node: 1
+GPU[7]		: (Topology) Numa Affinity: 1
+================================== End of ROCm SMI Log ===================================
+
+root@rs-mi325x8-mn-test1:~# ip -br a
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+eth0             UP             159.89.114.47/20 10.20.0.5/16 fe80::9832:3cff:fe5d:2043/64 
+eth1             UP             10.118.0.10/20 fe80::14fa:c4ff:fecf:fb81/64 
+eth2             UP             192.168.52.101/24 
+eth3             UP             192.168.53.101/24 
+eth4             UP             192.168.54.101/24 
+eth5             UP             192.168.55.101/24 
+eth6             UP             192.168.56.101/24 
+eth7             UP             192.168.57.101/24 
+eth8             UP             192.168.58.101/24 
+eth9             UP             192.168.59.101/24
+
+root@rs-mi325x8-mn-test1:~# ls /sys/class/infiniband/ 
+mlx5_0  mlx5_1  mlx5_2  mlx5_3  mlx5_4  mlx5_5  mlx5_6  mlx5_7
+
+root@rs-mi325x8-mn-test1:~# ibv_devices
+    device          	   node GUID
+    ------          	----------------
+    mlx5_0          	92e317fffe9789c8
+    mlx5_1          	92e317fffe979020
+    mlx5_2          	92e317fffe978f08
+    mlx5_3          	92e317fffe978f28
+    mlx5_4          	92e317fffe979098
+    mlx5_5          	92e317fffe9789b8
+    mlx5_6          	92e317fffe978f50
+    mlx5_7          	92e317fffe978ff0
+
+root@rs-mi325x8-mn-test1:~# ibv_devinfo -v | grep GID
+			GID[  0]:		fe80:0000:0000:0000:90e3:17ff:fe97:89c8, RoCE v1
+			GID[  1]:		fe80::90e3:17ff:fe97:89c8, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:3465, RoCE v1
+			GID[  3]:		::ffff:192.168.52.101, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:90e3:17ff:fe97:9020, RoCE v1
+			GID[  1]:		fe80::90e3:17ff:fe97:9020, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:3565, RoCE v1
+			GID[  3]:		::ffff:192.168.53.101, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:90e3:17ff:fe97:8f08, RoCE v1
+			GID[  1]:		fe80::90e3:17ff:fe97:8f08, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:3665, RoCE v1
+			GID[  3]:		::ffff:192.168.54.101, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:90e3:17ff:fe97:8f28, RoCE v1
+			GID[  1]:		fe80::90e3:17ff:fe97:8f28, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:3765, RoCE v1
+			GID[  3]:		::ffff:192.168.55.101, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:90e3:17ff:fe97:9098, RoCE v1
+			GID[  1]:		fe80::90e3:17ff:fe97:9098, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:3865, RoCE v1
+			GID[  3]:		::ffff:192.168.56.101, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:90e3:17ff:fe97:89b8, RoCE v1
+			GID[  1]:		fe80::90e3:17ff:fe97:89b8, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:3965, RoCE v1
+			GID[  3]:		::ffff:192.168.57.101, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:90e3:17ff:fe97:8f50, RoCE v1
+			GID[  1]:		fe80::90e3:17ff:fe97:8f50, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:3a65, RoCE v1
+			GID[  3]:		::ffff:192.168.58.101, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:90e3:17ff:fe97:8ff0, RoCE v1
+			GID[  1]:		fe80::90e3:17ff:fe97:8ff0, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:3b65, RoCE v1
+			GID[  3]:		::ffff:192.168.59.101, RoCE v2
+
+root@rs-mi325x8-mn-test1:~# rdma link
+link mlx5_0/1 state ACTIVE physical_state LINK_UP netdev eth2 
+link mlx5_1/1 state ACTIVE physical_state LINK_UP netdev eth3 
+link mlx5_2/1 state ACTIVE physical_state LINK_UP netdev eth4 
+link mlx5_3/1 state ACTIVE physical_state LINK_UP netdev eth5 
+link mlx5_4/1 state ACTIVE physical_state LINK_UP netdev eth6 
+link mlx5_5/1 state ACTIVE physical_state LINK_UP netdev eth7 
+link mlx5_6/1 state ACTIVE physical_state LINK_UP netdev eth8 
+link mlx5_7/1 state ACTIVE physical_state LINK_UP netdev eth9 
+```
 
 ## Documentation and Resources
 
