@@ -33,13 +33,15 @@ GPU Firmware: 01.25.17.07
 
 [OpenMPI](https://www.open-mpi.org/) is an implementation of [the MPI standard](https://www.mpi-forum.org/) that provides runtime tools (such as mpirun) for launching distributed applications, as well as communication libraries for coordinating processes across multiple nodes. Although it supports CPU-based collective communication, for RCCL testing, OpenMPI is used strictly as a launch and coordination layer across nodes, while all GPU-to-GPU communication is handled entirely by RCCL.
 
-Install OpenMPI on each GPU droplet:
+Install OpenMPI on both GPU droplets:
 ```
 # openmpi-bin: runtime tools for executing MPI applications
 # libopenmpi-dev: development libraries and headers for building MPI programs
 
 apt install -y openmpi-bin libopenmpi-dev
 ```
+
+**Notes:** OpenMPI must be installed on all target nodes because SSH only executes remote commands, while MPI relies on a runtime on each node to launch and manage processes, assign ranks, and establish inter-node communication.
 
 OpenMPI relies on SSH for launching processes across nodes, so we need to configure SSH key-based authentication:
 
