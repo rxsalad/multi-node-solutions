@@ -30,7 +30,7 @@ GPU Firmware: 01.25.17.07
 | eth9-roce      | 192.168.59.101/24 | 192.168.59.102/24  | 
 
 
-Check the GPU driver, ROCm stack and Python on the GPU droplets:
+Check the GPU driver and ROCm stack on the GPU droplets:
 
 ``` shell
 root@rs-mi350x8-mn-test1:~# amd-smi version
@@ -129,7 +129,6 @@ To run ROCm containers, follow [this guide](https://rocm.docs.amd.com/projects/i
 root@rs-mi350x8-mn-test2:~# amd-smi version
 AMDSMI Tool: 26.0.2+39589fda | AMDSMI Library version: 26.0.2 | ROCm version: 7.0.2 | amdgpu version: 6.14.14 | amd_hsmp version: N/A
 
-# Container-reported ROCm version: 7.2.2
 root@rs-mi350x8-mn-test1:~# docker run --rm -it \
   --device=/dev/kfd \
   --device=/dev/dri \
@@ -139,6 +138,7 @@ root@rs-mi350x8-mn-test1:~# docker run --rm -it \
   rocm/pytorch:rocm7.2.2_ubuntu24.04_py3.12_pytorch_release_2.7.1 \
   /bin/bash
 
+# Container-reported ROCm version: 7.2.2
 root@69f1f41f3f76:/# amd-smi version
 AMDSMI Tool: 26.2.2+671d39a71e | AMDSMI Library version: 26.2.2 | ROCm version: 7.2.2 | amdgpu version: 6.14.14 | hsmp version: N/A
 
@@ -314,7 +314,7 @@ link ionic_5/1 state ACTIVE physical_state LINK_UP netdev eth7
 link ionic_6/1 state ACTIVE physical_state LINK_UP netdev eth8 
 link ionic_7/1 state ACTIVE physical_state LINK_UP netdev eth9 
 
-root@test-server1:/#  ls /sys/class/infiniband
+root@test-server1:/# ls /sys/class/infiniband
 ionic_0  ionic_1  ionic_2  ionic_3  ionic_4  ionic_5  ionic_6  ionic_7
 
 root@test-server1:/# ibv_devices
