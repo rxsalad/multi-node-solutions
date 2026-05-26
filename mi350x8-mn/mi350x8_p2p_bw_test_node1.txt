@@ -1,0 +1,121 @@
+root@rs-mi350x8-mn-test1:~/pytorch_example# 
+NCCL_DEBUG=INFO \
+NCCL_IB_GID_INDEX=1 \
+NCCL_SOCKET_IFNAME=eth1 \
+NCCL_IB_QPS_PER_CONNECTION=8 \
+NCCL_P2P_CHUNKSIZE=16777216 \
+MASTER_ADDR=10.120.0.6 \
+MASTER_PORT=12355 \
+WORLD_SIZE=2 \
+RANK=0 \
+NCCL_IB_HCA=ionic_0 \
+GPU_ID=0 \
+python3 /root/pytorch_example/p2p_bw_test.py
+
+Rank 0 / 2: using GPU 0
+Rank 0 / 2: allocating tensor
+[rank0]:[W525 18:01:00.589204400 ProcessGroupNCCL.cpp:4068] Warning: An unbatched P2P op (send/recv) was called on this ProcessGroup with size 2.  In lazy initialization mode, this will result in a new 2-rank NCCL communicator to be created. (function operator())
+rs-mi350x8-mn-test1:358274:358274 [0] NCCL INFO Kernel version: 6.8.0-106-generic
+
+[2026-05-25 18:01:00] rs-mi350x8-mn-test1:358274:358274 [0] /longer_pathname_so_that_rpms_can_support_packaging_the_debug_info_for_all_os_profiles/src/out/almalinux-8.10/8.10/build/rccl/hipify/src/init.cc:161 NCCL WARN Missing "iommu=pt" from kernel command line which can lead to system instablity or hang!
+rs-mi350x8-mn-test1:358274:358274 [0] NCCL INFO NCCL_SOCKET_IFNAME set by environment to eth1
+rs-mi350x8-mn-test1:358274:358274 [0] NCCL INFO Bootstrap: Using eth1:10.120.0.6<0>
+rs-mi350x8-mn-test1:358274:358274 [0] NCCL INFO ROCr version 1.18
+rs-mi350x8-mn-test1:358274:358274 [0] NCCL INFO Dmabuf feature disabled without NCCL_DMABUF_ENABLE=1
+rs-mi350x8-mn-test1:358274:358274 [0] NCCL INFO Kernel version: 6.8.0-106-generic
+
+[2026-05-25 18:01:00] rs-mi350x8-mn-test1:358274:358274 [0] /longer_pathname_so_that_rpms_can_support_packaging_the_debug_info_for_all_os_profiles/src/out/almalinux-8.10/8.10/build/rccl/hipify/src/init.cc:161 NCCL WARN Missing "iommu=pt" from kernel command line which can lead to system instablity or hang!
+rs-mi350x8-mn-test1:358274:358274 [0] NCCL INFO RCCL version : 2.26.6-HEAD:64f48b6
+HIP version  : 7.0.51831-7c9236b16
+ROCm version : 7.0.2.0-56-9428210
+Hostname     : rs-mi350x8-mn-test1
+Librccl path : /usr/local/lib/python3.12/dist-packages/torch/lib/librccl.so
+rs-mi350x8-mn-test1:358274:358274 [0] NCCL INFO Comm config Blocking set to 1
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO NET/Plugin: Could not find: librccl-net.so. Using internal net plugin.
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO NCCL_SOCKET_IFNAME set by environment to eth1
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO NCCL_IB_HCA set to ionic_0
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO NET/IB : Using [0]ionic_0:1/RoCE [RO]; OOB eth1:10.120.0.6<0>
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Found ib_register_peer_memory_client in /proc/kallsyms
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO PROFILER/Plugin: Could not find: librccl-profiler.so. 
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Using network IB
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO [node_id = 7; gpu_id = 27391; unique_id = 783873072507359617; location_id = 43776; bdf = 43776; domain = 0; partition = 0], 
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO [node_id = 5; gpu_id = 32491; unique_id = 2582593237775031343; location_id = 39680; bdf = 39680; domain = 0; partition = 0], 
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO [node_id = 2; gpu_id = 29921; unique_id = 7374381745942691117; location_id = 33536; bdf = 33536; domain = 0; partition = 0], 
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO [node_id = 9; gpu_id = 42738; unique_id = 9461602203726530552; location_id = 47872; bdf = 47872; domain = 0; partition = 0], 
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO [node_id = 3; gpu_id = 45798; unique_id = 11617819877483777063; location_id = 35584; bdf = 35584; domain = 0; partition = 0], 
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO [node_id = 6; gpu_id = 44280; unique_id = 13706490171778353700; location_id = 41728; bdf = 41728; domain = 0; partition = 0], 
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO [node_id = 4; gpu_id = 47340; unique_id = 15205415634584480066; location_id = 37632; bdf = 37632; domain = 0; partition = 0], 
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO [node_id = 8; gpu_id = 24821; unique_id = 17427503645290311365; location_id = 45824; bdf = 45824; domain = 0; partition = 0], 
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO initialized internal alternative rsmi functionality
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO ncclCommInitRankConfig_impl comm 0x2fe878f0 rank 0 nranks 2 cudaDev 0 nvmlDev 0 busId 83000 commId 0xb7505bc75c20da08 - Init START
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO RAS client listening socket at ::1<28028>
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Bootstrap timings total 0.001576 (create 0.000032, send 0.000125, recv 0.000504, ring 0.000164, delay 0.000000)
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO initialized internal alternative rsmi functionality
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO NCCL_PXN_DISABLE set by environment to 0.
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Setting affinity for GPU 0 to ffffffff,ffffffff,ffffffff
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO comm 0x2fe878f0 rank 0 nRanks 2 nNodes 2 localRanks 1 localRank 0 MNNVL 0
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 00/08 : 0 1
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 01/08 : 0 1
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 02/08 : 0 1
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 03/08 : 0 1
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 04/08 : 0 1
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 05/08 : 0 1
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 06/08 : 0 1
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 07/08 : 0 1
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Trees [0] 1/-1/-1->0->-1 [1] 1/-1/-1->0->-1 [2] -1/-1/-1->0->1 [3] -1/-1/-1->0->1 [4] 1/-1/-1->0->-1 [5] 1/-1/-1->0->-1 [6] -1/-1/-1->0->1 [7] -1/-1/-1->0->1 comm 0x2fe878f0 nRanks 02 busId 83000
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO P2P Chunksize set to 131072
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Check P2P Type intraNodeP2pSupport 0 directMode 0
+rs-mi350x8-mn-test1:358274:358364 [0] NCCL INFO [Proxy Service] Device 0 CPU core 1
+rs-mi350x8-mn-test1:358274:358365 [0] NCCL INFO [Proxy Service UDS] Device 0 CPU core 2
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO NCCL_NET_DISABLE_INTRA set by environment to 1.
+rs-mi350x8-mn-test1:358274:358366 [0] NCCL INFO [Proxy Progress] Device 0 CPU core 3
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 00/0 : 1[0] -> 0[0] [receive] via NET/IB/0/GDRDMA comm 0x2fe878f0 nRanks 02
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 01/0 : 1[0] -> 0[0] [receive] via NET/IB/0/GDRDMA comm 0x2fe878f0 nRanks 02
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 02/0 : 1[0] -> 0[0] [receive] via NET/IB/0/GDRDMA comm 0x2fe878f0 nRanks 02
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 03/0 : 1[0] -> 0[0] [receive] via NET/IB/0/GDRDMA comm 0x2fe878f0 nRanks 02
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 04/0 : 1[0] -> 0[0] [receive] via NET/IB/0/GDRDMA comm 0x2fe878f0 nRanks 02
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 05/0 : 1[0] -> 0[0] [receive] via NET/IB/0/GDRDMA comm 0x2fe878f0 nRanks 02
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 06/0 : 1[0] -> 0[0] [receive] via NET/IB/0/GDRDMA comm 0x2fe878f0 nRanks 02
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 07/0 : 1[0] -> 0[0] [receive] via NET/IB/0/GDRDMA comm 0x2fe878f0 nRanks 02
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 00/0 : 0[0] -> 1[0] [send] via NET/IB/0/GDRDMA comm 0x2fe878f0 nRanks 02
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 01/0 : 0[0] -> 1[0] [send] via NET/IB/0/GDRDMA comm 0x2fe878f0 nRanks 02
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 02/0 : 0[0] -> 1[0] [send] via NET/IB/0/GDRDMA comm 0x2fe878f0 nRanks 02
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 03/0 : 0[0] -> 1[0] [send] via NET/IB/0/GDRDMA comm 0x2fe878f0 nRanks 02
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 04/0 : 0[0] -> 1[0] [send] via NET/IB/0/GDRDMA comm 0x2fe878f0 nRanks 02
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 05/0 : 0[0] -> 1[0] [send] via NET/IB/0/GDRDMA comm 0x2fe878f0 nRanks 02
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 06/0 : 0[0] -> 1[0] [send] via NET/IB/0/GDRDMA comm 0x2fe878f0 nRanks 02
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Channel 07/0 : 0[0] -> 1[0] [send] via NET/IB/0/GDRDMA comm 0x2fe878f0 nRanks 02
+rs-mi350x8-mn-test1:358274:358364 [0] NCCL INFO NCCL_IB_QPS_PER_CONNECTION set by environment to 8.
+rs-mi350x8-mn-test1:358274:358364 [0] NCCL INFO NCCL_IB_GID_INDEX set by environment to 1.
+rs-mi350x8-mn-test1:358274:358364 [0] NCCL INFO NCCL_IB_TC set by environment to 104.
+rs-mi350x8-mn-test1:358274:358364 [0] NCCL INFO NCCL_IB_FIFO_TC set by environment to 192.
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Connected all rings, use ring PXN 0 GDR 1
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Connected all trees
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Connected binomial trees
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO NCCL_CROSS_NIC set by environment to 0.
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO threadThresholds 8/8/64 | 16/8/64 | 256 | 256
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO 8 coll channels, 8 collnet channels, 0 nvls channels, 8 p2p channels, 2 p2p channels per peer
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO CC Off, workFifoBytes 4194304
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO RCCL Unroll Factor (pre-set): 2
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO TUNER/Plugin: Could not find: librccl-tuner.so. Using internal tuner plugin.
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO ncclCommInitRankConfig_impl comm 0x2fe878f0 rank 0 nranks 2 cudaDev 0 nvmlDev 0 busId 83000 commId 0xb7505bc75c20da08 - Init COMPLETE
+rs-mi350x8-mn-test1:358274:358359 [0] NCCL INFO Init timings - ncclCommInitRankConfig_impl: rank 0 nranks 2 total 4.32 (kernels 2.32, alloc 0.12, bootstrap 0.00, allgathers 0.00, topo 0.04, graphs 0.00, connections 1.85, rest 0.00)
+rs-mi350x8-mn-test1:358274:358376 [0] NCCL INFO Channel 02/1 : 0[0] -> 1[0] [send] via NET/IB/0/GDRDMA/Shared comm 0x2fe878f0 nRanks 02
+rs-mi350x8-mn-test1:358274:358376 [0] NCCL INFO Channel 03/1 : 0[0] -> 1[0] [send] via NET/IB/0/GDRDMA/Shared comm 0x2fe878f0 nRanks 02
+iter 0: 0.6011 sec
+iter 1: 0.6050 sec
+iter 2: 0.6080 sec
+iter 3: 0.6040 sec
+iter 4: 0.6051 sec
+iter 5: 0.6046 sec
+iter 6: 0.6086 sec
+iter 7: 0.6021 sec
+iter 8: 0.6056 sec
+iter 9: 0.6049 sec
+
+==== RESULT ====
+Avg time: 0.6049 sec
+Bandwidth: 227.21 Gbps
+Bandwidth: 26.45 GiB/s
+rs-mi350x8-mn-test1:358274:358393 [0] NCCL INFO comm 0x2fe878f0 rank 0 nranks 2 cudaDev 0 busId 83000 - Destroy COMPLETE
+root@rs-mi350x8-mn-test1:~/pytorch_example# 
