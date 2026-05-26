@@ -434,6 +434,7 @@ NCCL_NET_DISABLE_INTRA=1
 
 # Select the RDMA/RoCE GID entry used by RCCL: the correct value may vary by NIC type
 # Example discovery command: ibv_devinfo -v | grep GID
+# Use the IPv4-mapped GIDs: 1 for MI350x8 and 3 for MI325x8
 
 NCCL_IB_GID_INDEX=1
 
