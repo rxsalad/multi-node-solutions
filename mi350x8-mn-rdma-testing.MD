@@ -4,6 +4,8 @@ Follow [the guide](mi350x8-mn-environment.MD) to prepare the environment before 
 
 This guide provides a basic introduction and step-by-step instructions for manually performing RDMA testing in a multi-node MI350x8 GPU droplet environment. It also evaluates the performance impact of NUMA placement and cross-socket communication under different scenarios.
 
+The equivalent configuration for MI325x8 nodes, along with the key differences, is also provided.
+
 [RDMA tests](https://instinct.docs.amd.com/projects/system-acceptance/en/latest/network/rdma-benchmarking.html#ofed-performance-tests) (e.g., ib_write_bw) measure raw network performance between nodes, focusing on NIC and fabric throughput, while [RCCL Tests](https://instinct.docs.amd.com/projects/system-acceptance/en/latest/network/rdma-benchmarking.html#rccl-benchmarking-results) use XGMI for intra-node communication and RDMA/RoCE for inter-node communication to evaluate end-to-end GPU communication, including additional overhead from kernels, topology, and collective algorithms. RDMA validates the underlying network and NIC performance, whereas RCCL reflects real application-level and system performance; together, they provide a baseline hardware view and a realistic workload-level assessment.
 
 ## Test Environment

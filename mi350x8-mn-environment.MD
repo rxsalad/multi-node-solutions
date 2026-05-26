@@ -2,6 +2,8 @@
 
 This guide provides a basic introduction and step-by-step instructions for manually setting up a multi-node environment for testing and applications using MI350x8 GPU Droplets.
 
+The equivalent configuration for MI325x8 nodes, along with the key differences, is also provided.
+
 ## GPU Network Introduction
 
 All droplets have Internet access via `eth0` at 10 Gb/s and VPC connectivity via `eth1` at 25 Gb/s, while the GPU network supports inter-node GPU-to-GPU communication via [RDMA/RoCE](https://instinct.docs.amd.com/projects/gpu-cluster-networking/en/latest/how-to/roce-network-config.html) for distributed training and inference workloads.
