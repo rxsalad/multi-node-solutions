@@ -36,7 +36,7 @@ For GPU-to-GPU communication, the preferred paths are [XGMI](https://instinct.do
 
 | Interface / Path | Bandwidth | Role |
 |------------------|----------|------|
-| eth0 | 10 Gb/s | SSH; <br>HTTP APIs;<br> Downloads and uploads (container images, models, datasets, libraries, and updates) |
+| eth0 | 10 Gb/s | SSH; <br>HTTP APIs for serving user traffic;<br> Downloads and uploads (container images, models, datasets, libraries, and updates) |
 | eth1 | 25 Gb/s | NFS (models/checkpoints, datasets, logs, and metrics); <br>HTTP APIs for distributed inference across Router, Prefiller, and Decoder;<br> Bootstrap/initialization and coordination for RDMA/RoCE; <br>Fallback path for RDMA/RoCE |
 | eth2–eth9 | 400 Gb/s each | RDMA/RoCE for inter-node GPU-to-GPU communication (used by RCCL);<br> Training traffic (gradients, parameters, optimizer states, activations);<br> Inference traffic (activations, KV cache) |
 | XGMI (not user-configurable) | 7×128 GB/s per MI325 GPU<br> 7×153.6 GB/s per MI350 GPU   | Intra-node GPU-to-GPU communication (used by NCCL/RCCL);<br>  Training traffic (gradients, activations, optimizer states);<br> Inference traffic (activations, KV cache) |
