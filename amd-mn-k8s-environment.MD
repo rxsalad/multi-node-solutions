@@ -2,6 +2,8 @@
 
 This guide provides a basic introduction and step-by-step instructions for setting up a multi-node DOKS environment for testing and applications using AMD GPU nodes, including MI325x8 or MI350x8.
 
+For non-DOKS environments, please refer to [this guide](https://github.com/rxsalad/multi-node-solutions/blob/main/mi350x8-mn-environment.MD) for additional details.
+
 ## GPU Network Introduction
 
 All DOKS workers have Internet access via `eth0` at 10 Gb/s and VPC connectivity via `eth1` at 25 Gb/s, while the GPU network supports inter-node GPU-to-GPU communication via [RDMA/RoCE](https://instinct.docs.amd.com/projects/gpu-cluster-networking/en/latest/how-to/roce-network-config.html) for distributed training and inference workloads.
@@ -28,9 +30,9 @@ RDMA/RoCE applications still require an out-of-band TCP/IP channel for bootstrap
 
 **Scenario 1:** Pods over DOKS Workers
 
-In typical DOKS deployments, Pods running on DOKS workers use their own `eth0` interface to communicate with other Pods, Services, Nodes and the Internet. This interface can also serve as the out-of-band TCP channel for RDMA/RoCE applications. In this model, the RDMA network devices (`fabric0–fabric7`) are moved from the host network namespace into the Pod network namepsace. Once transfered, these devices are no longer visible or accessible from the host network namespace and are available exclusively within the Pod.
+In typical DOKS deployments, Pods running on DOKS workers use their own `eth0` interface to communicate with other Pods, Services, Nodes and the Internet. This interface can also serve as the out-of-band TCP channel for RDMA/RoCE applications. In this model, the RDMA network devices (`fabric0–fabric7`) are moved from the host network namespace into the Pod network namepsace. Once transfered, these devices are no longer visible or accessible from the host network namespace and are used exclusively within the Pod.
 
-**Addtional Details:** [DOKS uses Cilium CNI with VPC-native routing](https://docs.digitalocean.com/products/kubernetes/details/features/#vpc-native-networking), enabling Pod-to-Pod,Pod-to-Service, Pod-to-Node/External traffic to be forwarded directly through the Linux kernel networking stack without overlay encapsulation. Pod-to-Pod traffic is routed natively across the VPC and does not require NAT. Cilium leverages eBPF for routing, service load balancing, network policy enforcement, and NAT where necessary (for example, egress traffic), eliminating the need for kube-proxy and replacing traditional iptables/IPVS-based service handling with an eBPF-based datapath, while the Cilium agent operates solely in the control plane and is not involved in packet forwarding.
+**Addtional Details:** [DOKS uses Cilium CNI with VPC-native routing](https://docs.digitalocean.com/products/kubernetes/details/features/#vpc-native-networking), enabling Pod-to-Pod,Pod-to-Service, Pod-to-Node/External traffic to be forwarded directly through the Linux kernel networking stack without overlay encapsulation. Pod-to-Pod traffic is routed natively across the VPC and does not require NAT. [Cilium](https://docs.cilium.io/en/stable/) leverages [eBPF](https://ebpf.io/what-is-ebpf/) for routing, service load balancing, network policy enforcement, and NAT where necessary (for example, egress traffic), eliminating the need for kube-proxy and replacing traditional iptables-based service handling with an eBPF-based datapath, while the Cilium agent operates solely in the control plane and is not involved in packet forwarding.
 
 **Scenario 2:** Pods Sharing Host Network
 
@@ -110,7 +112,7 @@ There are 2 ways to access DOKS workers to check system information and troubles
 
 ### GPU Check
 
-Perform a basic system and AMD GPU check on the DOKS GPU workers:
+Perform a basic system and AMD GPU check on the GPU workers:
 
 ``` bash
 uname -r
@@ -136,7 +138,7 @@ apt install net-tools
 
 ### RDMA/RoCE Check
 
-Run the following commands on the DOKS GPU workers to verify network connectivity and RDMA/RoCE configuration.
+Run the following commands on the GPU workers to verify network connectivity and RDMA/RoCE configuration.
 
 ``` bash
 # Provides an overview of all network interfaces and their IPs.
@@ -165,41 +167,48 @@ for i in {0..7}; do
 done
 ```
 
-| DOKS Worker    | rs-mn-mi350x8-pool-381iaf  | rs-mn-mi350x8-pool-381iaq  | 
-|----------------|----------------|-----------------|
-| eth0-internet  | 159.89.134.60 | 159.65.102.82 |
-| eth1-vpc       | 10.120.0.11/20  | 10.120.0.3/20 | 
-| fabric0  | fe80::490:81ff:fe49:c440/64 | fe80::490:81ff:fe4b:e670/64  | 
-| fabric1  | fe80::490:81ff:fe49:488/64 | fe80::490:81ff:fe4b:ca20/64 | 
-| fabric2  | fe80::490:81ff:fe49:18f8/64 | fe80::490:81ff:fe4c:1a90/64  | 
-| fabric3  | fe80::490:81ff:fe4a:6fb8/64 | fe80::490:81ff:fe4b:fc78/64 |
-| fabric4  | fe80::490:81ff:fe49:85d0/64 | fe80::490:81ff:fe4c:1790/64  | 
-| fabric5  | fe80::490:81ff:fe49:cbc0/64 | fe80::490:81ff:fe4c:f98/64 | 
-| fabric6  | fe80::490:81ff:fe49:d280/64 | fe80::490:81ff:fe4c:1610/64 | 
-| fabric7  | fe80::490:81ff:fe49:1eb0/64  | fe80::490:81ff:fe4b:f510/64  | 
+| DOKS Worker    | rs-mn-mi350x8-pool-381iaf  | rs-mn-mi350x8-pool-381iaq  | rs-mn-cpu-pool-381iam |
+|----------------|----------------|-----------------|-----------------|
+| eth0-internet  | 159.89.134.60 | 159.65.102.82 | 167.71.156.33 |
+| eth1-vpc       | 10.120.0.11/20  | 10.120.0.3/20 | 10.120.0.6/20 |
+| fabric0  | fe80::490:81ff:fe49:c440/64 | fe80::490:81ff:fe4b:e670/64  | |
+| fabric1  | fe80::490:81ff:fe49:488/64 | fe80::490:81ff:fe4b:ca20/64 | |
+| fabric2  | fe80::490:81ff:fe49:18f8/64 | fe80::490:81ff:fe4c:1a90/64  | | 
+| fabric3  | fe80::490:81ff:fe4a:6fb8/64 | fe80::490:81ff:fe4b:fc78/64 | |
+| fabric4  | fe80::490:81ff:fe49:85d0/64 | fe80::490:81ff:fe4c:1790/64  | | 
+| fabric5  | fe80::490:81ff:fe49:cbc0/64 | fe80::490:81ff:fe4c:f98/64 |  |
+| fabric6  | fe80::490:81ff:fe49:d280/64 | fe80::490:81ff:fe4c:1610/64 |  |
+| fabric7  | fe80::490:81ff:fe49:1eb0/64  | fe80::490:81ff:fe4b:f510/64  |  |
 
 
-Each RDMA/RoCE fabric interface is assigned a [link-local IPv6 address](https://www.geeksforgeeks.org/computer-networks/link-local-address/) (**fe80::/10**). This is a common approach in HPC and AI clusters, where link-local addressing provides deterministic interface binding and reliable neighbor discovery for RDMA communication. Some large-scale RoCEv2 deployments may additionally assign routable IPv4 or IPv6 addresses to fabric interfaces to support broader networking, operational, and management requirements.
+Each RDMA/RoCE fabric interface is automatically assigned a [link-local IPv6 address](https://www.geeksforgeeks.org/computer-networks/link-local-address/) (**fe80::/10**). This is a common design in HPC and AI clusters, where link-local addressing provides deterministic interface binding and reliable neighbor discovery for RDMA communication. In some large-scale RoCEv2 deployments, fabric interfaces may also be assigned routable IPv4 or IPv6 addresses to support broader networking, operational, and management requirements.
 
-To verify fabric connectivity, test communication between the fabric interfaces on two worker nodes. Because link-local IPv6 addresses are scoped to a specific interface and are not routable, the source interface must be explicitly specified using the `-I` option.
-
-``` bash
-# rs-mn-mi350x8-pool-381iaf to rs-mn-mi350x8-pool-381iaq 
-
-ping -c 1 -6 -I fabric0 fe80::490:81ff:fe4b:e670
-...
-ping -c 1 -6 -I fabric7 fe80::490:81ff:fe49:1eb0
-```
-
-The destination link-local IPv6 address does not need to belong to the same fabric interface number on the peer node. Connectivity succeeds as long as the destination address is reachable on the Layer 2 network associated with the selected local fabric interface.
+To verify fabric connectivity, test communication between the fabric interfaces on the two GPU workers. Because link-local IPv6 addresses are scoped to a specific interface and are not routable, the source interface must be explicitly specified using the `-I` option.
 
 ``` bash
-# rs-mn-mi350x8-pool-381iaf to rs-mn-mi350x8-pool-381iaq 
+# rs-mn-mi350x8-pool-381iaf -> rs-mn-mi350x8-pool-381iaq 
 
-ping -c 1 -6 -I fabric7 fe80::490:81ff:fe4b:e670
+ping -c 1 -6 -I fabric0 fe80::490:81ff:fe4b:e670 # Peer fabric0 interface
 ...
-ping -c 1 -6 -I fabric0 fe80::490:81ff:fe49:1eb0
+ping -c 1 -6 -I fabric7 fe80::490:81ff:fe49:1eb0 # Peer fabric7 interface
 ```
+
+[IPv6 Neighbor Discovery Protocol - NDP](https://www.networkacademy.io/ccna/ipv6/neighbor-discovery-protocol) resolves a destination IPv6 address to the MAC address of the specific interface that owns that address on the same Layer 2 network. NDP operates only within the local broadcast domain and does not discover or interact with other interfaces on the remote node.
+
+When a `ping` command is issued, the host first sends an ICMPv6 Neighbor Solicitation message (via multicast) to resolve the destination MAC address. After neighbor resolution completes, the ICMPv6 Echo Request is transmitted directly over the local Layer 2 fabric to the target interface.
+
+In a rail-only GPU fabric, communication is supported only between directly connected peer interfaces. Cross-rail communication is not supported. For example, the following tests will fail because the source and destination interfaces belong to different rails:
+
+``` bash
+# rs-mn-mi350x8-pool-381iaf -> rs-mn-mi350x8-pool-381iaq 
+
+ping -c 1 -6 -I fabric7 fe80::490:81ff:fe4b:e670 # Destination is peer fabric0
+...
+ping -c 1 -6 -I fabric0 fe80::490:81ff:fe49:1eb0 # Destination is peer fabric7
+```
+
+In these examples, the destination link-local address is reachable only through its corresponding rail. Since no Layer 2 connectivity exists between different rails, Neighbor Discovery cannot resolve the destination MAC address and the communication attempt fails.
+
 
 ### VPC Native Routing Check
 
@@ -234,15 +243,11 @@ default via 159.89.128.1 dev eth0 proto static
 159.89.128.0/20 dev eth0 proto kernel scope link src 159.89.134.60 
 ```
 
-The routing table shows a VPC-native Kubernetes networking setup where eth0 provides public internet access and eth1 serves as the VPC underlay. Private RFC1918 traffic (10/8, 172.16/12, 192.168/16) is routed through the VPC gateway (10.120.0.1). Pod networking is VPC-native, with each node pool’s pod CIDR routed directly over the VPC network via static next-hop routes, enabling inter-node pod communication without overlay encapsulation. Local pod traffic is handled through the cilium_host interface, while Cilium manages pod-to-node integration.
+The routing table shows a VPC-native Kubernetes networking setup where `eth0` provides public internet access and `eth1` serves as the VPC underlay. Private RFC1918 traffic (10/8, 172.16/12, 192.168/16) is routed through the VPC gateway (10.120.0.1). 
 
+Pod networking is VPC-native, with each node pool’s pod CIDR routed directly over the VPC network via static next-hop routes, enabling inter-node pod communication without overlay encapsulation. Local pod traffic is handled through the cilium_host interface, while Cilium manages pod-to-node integration.
 
-The routing table shows a VPC-native Kubernetes networking setup where `eth0` provides public internet access and `eth1` serves as the VPC underlay. Private RFC1918 traffic (10/8, 172.16/12, 192.168/16) is routed through the VPC gateway (10.120.0.1). Pod networking is VPC-native, with each node pool’s pod CIDR routed directly over the VPC network via static next-hop routes, enabling inter-node pod communication without overlay encapsulation. Local pod traffic is handled through the cilium_host interface, while Cilium manages pod-to-node integration.
-
-The DOKS service subnet (ClusterIP range, e.g. 10.120.32.0/19) does not appear in the host routing table because it is not a routable network at L3. Instead, it is a virtual service CIDR implemented in the dataplane (Cilium eBPF and/or kube-proxy iptables/IPVS rules). Service IPs are translated in-kernel to backend pod endpoints rather than being forwarded via the Linux routing table, so no ip route entries are installed for this range.
-
-
-
+The DOKS service subnet (the ClusterIP range, for example 10.120.32.0/19) does not appear in the host routing table because it is not a routable Layer 3 network. Instead, the service CIDR is implemented as a virtual address space in the Cilium eBPF dataplane. When traffic is sent to a ClusterIP address, Cilium performs in-kernel service load balancing and translates the virtual service IP to one of the backend pod endpoints. Because service traffic is intercepted and processed before a routing lookup occurs, no corresponding ip route entries are installed for the service CIDR.
 
 ## DOKS Cluster Check
 
