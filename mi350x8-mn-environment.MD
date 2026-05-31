@@ -24,7 +24,11 @@ When RDMA/RoCE applications run over the 8 NICs using RoCEv2 (UDP over IP), traf
 
 **Addtional Details:** RDMA/RoCE applications require access to both the RDMA subsystem and the associated Ethernet interfaces. First, applications must be able to access the RDMA character devices under `/dev/infiniband`. These devices provide the verbs interface used to create and manage RDMA resources such as queue pairs, memory regions, completion queues, and other RDMA objects.They also require access to the corresponding Ethernet interfaces, which provide the network context necessary for communication, including IP configuration, MTU settings, VLAN membership, and QoS parameters. Although data transfer occurs through the RDMA data path, the Ethernet interfaces remain essential for address resolution (for example, GID resolution), route selection, and endpoint discovery.
 
+**Out-of-Band TCP/IP Channel (Control Plane)**
+
 RDMA/RoCE applications still require an out-of-band TCP/IP channel for bootstrap/initialization and coordination, such as exchanging rank or connection information. On GPU Droplets, this channel is provided by `eth1` interface.
+
+**Intra-node and Inter-node GPU Communication (Data Plane)**
 
 For GPU-to-GPU communication, the preferred paths are [XGMI](https://instinct.docs.amd.com/projects/virt-drv/en/latest/userguides/XGMI_configuration.html) (AMD Infinity Fabric) for intra-node transfers and 400 Gigabit Ethernet with RDMA for inter-node transfers. PCIe and shared memory (intra-node) and TCP/IP (inter-node, eth1) serve only as fallback options. Numerous [RCCL environment variables](https://rocm.docs.amd.com/projects/rccl/en/develop/api-reference/env-variables.html) can be configured to control these communication paths, and they should be carefully considered.
 
