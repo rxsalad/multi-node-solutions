@@ -55,7 +55,8 @@ doctl vpcs list
 # Get the current default AI/ML image for AMD GPU Droplets 
 doctl compute image list --public | grep AMD | grep base
 
-# MI350x8 
+# MI350x8
+# Use a fabric-enabled size; otherwise, RDMA/RoCE will not be enabled.
 doctl compute droplet create rs-mi350x8-mn-test1 --image 221919586 --region sfo2 --size gpu-mi350x8-2304gb-fabric-contracted --enable-monitoring --ssh-keys 55531023
 doctl compute droplet create rs-mi350x8-mn-test2 --image 221919586 --region sfo2 --size gpu-mi350x8-2304gb-fabric-contracted --enable-monitoring --ssh-keys 55531023
 
