@@ -64,6 +64,8 @@ doctl compute droplet create rs-mi325x8-mn-test1 --image 221919586 --region tor1
 doctl compute droplet create rs-mi325x8-mn-test2 --image 221919586 --region tor1 --size gpu-mi325x8-2048gb-fabric-contracted --enable-monitoring --ssh-keys 55531023
 ```
 
+**Notes:** The memory information shown in the GPU instance size refers to the physical host server. Since a GPU droplet runs as a virtual machine, the usable memory inside the VM is smaller. You can verify the actual available memory within the VM (1.2 TiB for MI325x8 instances and 2.0 TiB for MI350x8 instances).
+
 SSH into the droplets and perform a basic check:
 
 ``` shell
