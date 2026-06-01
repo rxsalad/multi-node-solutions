@@ -249,6 +249,138 @@ Pod networking is VPC-native, with each node pool’s pod CIDR routed directly o
 
 The DOKS service subnet (the ClusterIP range, for example 10.120.32.0/19) does not appear in the host routing table because it is not a routable Layer 3 network. Instead, the service CIDR is implemented as a virtual address space in the Cilium eBPF dataplane. When traffic is sent to a ClusterIP address, Cilium performs in-kernel service load balancing and translates the virtual service IP to one of the backend pod endpoints. Because service traffic is intercepted and processed before a routing lookup occurs, no corresponding ip route entries are installed for the service CIDR.
 
+### Worker Details - MI350x8
+
+```
+# uname -r
+6.12.48+deb13-amd64
+
+# cat /etc/os-release
+PRETTY_NAME="Debian GNU/Linux 13 (trixie)"
+NAME="Debian GNU/Linux"
+VERSION_ID="13"
+VERSION="13 (trixie)"
+VERSION_CODENAME=trixie
+DEBIAN_VERSION_FULL=13.2
+ID=debian
+HOME_URL="https://www.debian.org/"
+SUPPORT_URL="https://www.debian.org/support"
+BUG_REPORT_URL="https://bugs.debian.org/"
+
+# dkms status
+amdgpu/6.14.14-2226257.24.04, 6.12.48+deb13-amd64, x86_64: installed (Original modules exist)
+ionic/25.11.1.001, 6.12.48+deb13-amd64, x86_64: installed (Original modules exist)
+mlnx-ofed-kernel/24.10.OFED.24.10.3.2.5.1, 6.12.48+deb13-amd64, x86_64: installed (Original modules exist)
+
+# amd-smi version
+AMDSMI Tool: 26.0.2+39589fda | AMDSMI Library version: 26.0.2 | ROCm version: 7.0.2 | amdgpu version: 6.14.14 | amd_hsmp version: N/A
+
+# ls /sys/class/infiniband/
+ionic_0  ionic_1  ionic_2  ionic_3  ionic_4  ionic_5  ionic_6  ionic_7
+
+# ibv_devices
+    device                 node GUID
+    ------              ----------------
+    ionic_0             049081fffe49c440
+    ionic_1             049081fffe490488
+    ionic_2             049081fffe4918f8
+    ionic_3             049081fffe4a6fb8
+    ionic_4             049081fffe4985d0
+    ionic_5             049081fffe49cbc0
+    ionic_6             049081fffe49d280
+    ionic_7             049081fffe491eb0
+
+# ibv_devinfo -v | grep GI
+                        GID[  0]:               fe80::490:81ff:fe49:c440, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe49:488, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe49:18f8, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe4a:6fb8, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe49:85d0, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe49:cbc0, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe49:d280, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe49:1eb0, RoCE v2
+
+# rdma link
+link ionic_0/1 state ACTIVE physical_state LINK_UP netdev fabric0 
+link ionic_1/1 state ACTIVE physical_state LINK_UP netdev fabric1 
+link ionic_2/1 state ACTIVE physical_state LINK_UP netdev fabric2 
+link ionic_3/1 state ACTIVE physical_state LINK_UP netdev fabric3 
+link ionic_4/1 state ACTIVE physical_state LINK_UP netdev fabric4 
+link ionic_5/1 state ACTIVE physical_state LINK_UP netdev fabric5 
+link ionic_6/1 state ACTIVE physical_state LINK_UP netdev fabric6 
+link ionic_7/1 state ACTIVE physical_state LINK_UP netdev fabric7                        
+```
+
+### Worker Details - MI325x8
+
+```
+# uname -r
+6.12.48+deb13-amd64
+
+# cat /etc/os-release
+PRETTY_NAME="Debian GNU/Linux 13 (trixie)"
+NAME="Debian GNU/Linux"
+VERSION_ID="13"
+VERSION="13 (trixie)"
+VERSION_CODENAME=trixie
+DEBIAN_VERSION_FULL=13.2
+ID=debian
+HOME_URL="https://www.debian.org/"
+SUPPORT_URL="https://www.debian.org/support"
+BUG_REPORT_URL="https://bugs.debian.org/"
+
+# dkms status
+amdgpu/6.14.14-2226257.24.04, 6.12.48+deb13-amd64, x86_64: installed (Original modules exist)
+ionic/25.11.1.001, 6.12.48+deb13-amd64, x86_64: installed (Original modules exist)
+mlnx-ofed-kernel/24.10.OFED.24.10.3.2.5.1, 6.12.48+deb13-amd64, x86_64: installed (Original modules exist)
+
+# amd-smi version
+AMDSMI Tool: 26.0.2+39589fda | AMDSMI Library version: 26.0.2 | ROCm version: 7.0.2 | amdgpu version: 6.14.14 | amd_hsmp version: N/A
+
+# ls /sys/class/infiniband/ 
+mlx5_0  mlx5_1  mlx5_2  mlx5_3  mlx5_4  mlx5_5  mlx5_6  mlx5_7
+
+# ibv_devices
+    device                 node GUID
+    ------              ----------------
+    mlx5_0              92e317fffe9789c8
+    mlx5_1              92e317fffe979020
+    mlx5_2              92e317fffe978f08
+    mlx5_3              92e317fffe978f28
+    mlx5_4              92e317fffe979098
+    mlx5_5              92e317fffe9789b8
+    mlx5_6              92e317fffe978f50
+    mlx5_7              92e317fffe978ff0
+
+# ibv_devinfo -v | grep GID
+                        GID[  0]:               fe80:0000:0000:0000:90e3:17ff:fe97:89c8, RoCE v1
+                        GID[  1]:               fe80::90e3:17ff:fe97:89c8, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:90e3:17ff:fe97:9020, RoCE v1
+                        GID[  1]:               fe80::90e3:17ff:fe97:9020, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:90e3:17ff:fe97:8f08, RoCE v1
+                        GID[  1]:               fe80::90e3:17ff:fe97:8f08, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:90e3:17ff:fe97:8f28, RoCE v1
+                        GID[  1]:               fe80::90e3:17ff:fe97:8f28, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:90e3:17ff:fe97:9098, RoCE v1
+                        GID[  1]:               fe80::90e3:17ff:fe97:9098, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:90e3:17ff:fe97:89b8, RoCE v1
+                        GID[  1]:               fe80::90e3:17ff:fe97:89b8, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:90e3:17ff:fe97:8f50, RoCE v1
+                        GID[  1]:               fe80::90e3:17ff:fe97:8f50, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:90e3:17ff:fe97:8ff0, RoCE v1
+                        GID[  1]:               fe80::90e3:17ff:fe97:8ff0, RoCE v2
+
+# rdma link
+link mlx5_0/1 state ACTIVE physical_state LINK_UP netdev fabric0 
+link mlx5_1/1 state ACTIVE physical_state LINK_UP netdev fabric1 
+link mlx5_2/1 state ACTIVE physical_state LINK_UP netdev fabric2 
+link mlx5_3/1 state ACTIVE physical_state LINK_UP netdev fabric3 
+link mlx5_4/1 state ACTIVE physical_state LINK_UP netdev fabric4 
+link mlx5_5/1 state ACTIVE physical_state LINK_UP netdev fabric5 
+link mlx5_6/1 state ACTIVE physical_state LINK_UP netdev fabric6 
+link mlx5_7/1 state ACTIVE physical_state LINK_UP netdev fabric7 
+```
+
 ## DOKS Cluster Check
 
 ``` bash
