@@ -2447,8 +2447,6 @@ link ionic_6/1 state ACTIVE physical_state LINK_UP netdev fabric6
 link ionic_7/1 state ACTIVE physical_state LINK_UP netdev fabric7 
 ```
 </details>
-</br>
-
 
 <details>
 <summary>K8S Node</summary>
