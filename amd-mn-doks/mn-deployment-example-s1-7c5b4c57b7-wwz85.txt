@@ -1,0 +1,100 @@
+# Scenario 1: Pods with Isolated Pod Networking
+
+# Rank: 1
+# Pod: mn-deployment-example-s1-7c5b4c57b7-wwz85
+# DOKS worker: rs-mn-mi350x8-pool-381iaq
+
+root@mn-deployment-example-s1-7c5b4c57b7-wwz85:/# NCCL_DEBUG=INFO \
+    NCCL_IB_GID_INDEX=0 \
+    NCCL_SOCKET_IFNAME=eth0 \
+    NCCL_IB_QPS_PER_CONNECTION=8 \
+    NCCL_P2P_CHUNKSIZE=16777216 \
+    MASTER_ADDR=10.121.1.4 \
+    MASTER_PORT=12355 \
+    WORLD_SIZE=2 \
+    RANK=1 \
+    NCCL_IB_HCA=ionic_0 \
+    GPU_ID=0 \
+    python3 p2p_bw_test.py
+
+Rank 1 / 2: using GPU 0
+Rank 1 / 2: allocating tensor
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:831 [0] NCCL INFO ROCr version 1.18
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:831 [0] NCCL INFO Dmabuf feature disabled without NCCL_DMABUF_ENABLE=1
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:831 [0] NCCL INFO Kernel version: 6.12.48+deb13-amd64
+
+[2026-06-14 18:36:57] mn-deployment-example-s1-7c5b4c57b7-wwz85:831:831 [0] /longer_pathname_so_that_rpms_can_support_packaging_the_debug_info_for_all_os_profiles/src/out/ubuntu-24.04/24.04/build/rccl/hipify/src/init.cc:218 NCCL WARN Missing "iommu=pt" from kernel command line which can lead to system instablity or hang!
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:831 [0] NCCL INFO Hipruntime version: 70253211, firmware version: 34
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:831 [0] NCCL INFO NCCL_SOCKET_IFNAME set by environment to eth0
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:831 [0] NCCL INFO Bootstrap: Using eth0:10.121.0.133<0>
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:831 [0] NCCL INFO RCCL version : 2.27.7-HEAD:96a25b5
+HIP version  : 7.2.53211-671d39a71e
+ROCm version : 7.2.2.0-86-671d39a71e
+Hostname     : mn-deployment-example-s1-7c5b4c57b7-wwz85
+Librccl path : /opt/rocm/lib/librccl.so.1
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:831 [0] NCCL INFO Comm config Blocking set to 1
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. 
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO NCCL_SOCKET_IFNAME set by environment to eth0
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO NCCL_IB_HCA set to ionic_0
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO NET/IB : Using [0]ionic_0:1/RoCE [RO]; OOB eth0:10.121.0.133<0>
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Initialized NET plugin IB
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Found ib_register_peer_memory_client in /proc/kallsyms
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Assigned NET plugin IB to comm
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Using network IB
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO [node_id = 7; gpu_id = 27391; unique_id = 783873072507359617; location_id = 43776; bdf = 43776; domain = 0; partition = 0], 
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO [node_id = 5; gpu_id = 32491; unique_id = 2582593237775031343; location_id = 39680; bdf = 39680; domain = 0; partition = 0], 
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO [node_id = 2; gpu_id = 29921; unique_id = 7374381745942691117; location_id = 33536; bdf = 33536; domain = 0; partition = 0], 
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO [node_id = 9; gpu_id = 42738; unique_id = 9461602203726530552; location_id = 47872; bdf = 47872; domain = 0; partition = 0], 
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO [node_id = 3; gpu_id = 45798; unique_id = 11617819877483777063; location_id = 35584; bdf = 35584; domain = 0; partition = 0], 
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO [node_id = 6; gpu_id = 44280; unique_id = 13706490171778353700; location_id = 41728; bdf = 41728; domain = 0; partition = 0], 
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO [node_id = 4; gpu_id = 47340; unique_id = 15205415634584480066; location_id = 37632; bdf = 37632; domain = 0; partition = 0], 
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO [node_id = 8; gpu_id = 24821; unique_id = 17427503645290311365; location_id = 45824; bdf = 45824; domain = 0; partition = 0], 
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO initialized internal alternative rsmi functionality
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO ncclCommInitRankConfig_impl comm 0x4b1626e0 rank 1 nranks 2 cudaDev 0 nvmlDev 0 busId 83000 commId 0x6a1a7d6fef33049d - Init START
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO RAS client listening socket at ::1<28028>
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Bootstrap timings total 0.004023 (create 0.000065, send 0.001331, recv 0.001472, ring 0.000228, delay 0.000000)
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO initialized internal alternative rsmi functionality
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO RCCL PXN set as disabled
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Setting affinity for GPU 0 to 0-95
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO GFX9 cheap fence is ON
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO comm 0x4b1626e0 rank 1 nRanks 2 nNodes 2 localRanks 1 localRank 0 MNNVL 0
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Trees [0] -1/-1/-1->1->0 [1] -1/-1/-1->1->0 [2] 0/-1/-1->1->-1 [3] 0/-1/-1->1->-1 [4] -1/-1/-1->1->0 [5] -1/-1/-1->1->0 [6] 0/-1/-1->1->-1 [7] 0/-1/-1->1->-1 comm 0x4b1626e0 nRanks 02 busId 83000
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO RCCL P2P net chunk size default set to: 131072
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO P2P Chunksize set to 131072
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO PROFILER/Plugin: Could not find: librccl-profiler.so. 
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:903 [0] NCCL INFO [Proxy Service] Device 0 CPU core 78
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:904 [0] NCCL INFO [Proxy Service UDS] Device 0 CPU core 79
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:905 [0] NCCL INFO [Proxy Progress] Device 0 CPU core 80
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Channel 00/0 : 0[0] -> 1[0] [receive] via NET/IB/0/GDRDMA comm 0x4b1626e0 nRanks 02
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Channel 01/0 : 0[0] -> 1[0] [receive] via NET/IB/0/GDRDMA comm 0x4b1626e0 nRanks 02
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Channel 02/0 : 0[0] -> 1[0] [receive] via NET/IB/0/GDRDMA comm 0x4b1626e0 nRanks 02
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Channel 03/0 : 0[0] -> 1[0] [receive] via NET/IB/0/GDRDMA comm 0x4b1626e0 nRanks 02
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Channel 04/0 : 0[0] -> 1[0] [receive] via NET/IB/0/GDRDMA comm 0x4b1626e0 nRanks 02
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Channel 05/0 : 0[0] -> 1[0] [receive] via NET/IB/0/GDRDMA comm 0x4b1626e0 nRanks 02
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Channel 06/0 : 0[0] -> 1[0] [receive] via NET/IB/0/GDRDMA comm 0x4b1626e0 nRanks 02
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Channel 07/0 : 0[0] -> 1[0] [receive] via NET/IB/0/GDRDMA comm 0x4b1626e0 nRanks 02
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Channel 00/0 : 1[0] -> 0[0] [send] via NET/IB/0/GDRDMA comm 0x4b1626e0 nRanks 02
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Channel 01/0 : 1[0] -> 0[0] [send] via NET/IB/0/GDRDMA comm 0x4b1626e0 nRanks 02
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Channel 02/0 : 1[0] -> 0[0] [send] via NET/IB/0/GDRDMA comm 0x4b1626e0 nRanks 02
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Channel 03/0 : 1[0] -> 0[0] [send] via NET/IB/0/GDRDMA comm 0x4b1626e0 nRanks 02
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Channel 04/0 : 1[0] -> 0[0] [send] via NET/IB/0/GDRDMA comm 0x4b1626e0 nRanks 02
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Channel 05/0 : 1[0] -> 0[0] [send] via NET/IB/0/GDRDMA comm 0x4b1626e0 nRanks 02
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Channel 06/0 : 1[0] -> 0[0] [send] via NET/IB/0/GDRDMA comm 0x4b1626e0 nRanks 02
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Channel 07/0 : 1[0] -> 0[0] [send] via NET/IB/0/GDRDMA comm 0x4b1626e0 nRanks 02
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:903 [0] NCCL INFO NCCL_IB_QPS_PER_CONNECTION set by environment to 8.
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:903 [0] NCCL INFO NCCL_IB_GID_INDEX set by environment to 0.
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Connected all rings, use ring PXN 0 GDR 1
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Connected all trees
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Connected binomial trees
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO RCCL Tuning index:0
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO threadThresholds 8/8/64 | 16/8/64 | 256 | 256
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO comm:0x4b1626e0, nRanks:2, nNodes:2, coll channels:8 collnet channels:8, nvls channels:0, p2p channels:8, p2p channels per peer:2
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO RCCL Unroll Factor (pre-set): 2
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO ncclCommInitRankConfig_impl comm 0x4b1626e0 rank 1 nranks 2 cudaDev 0 nvmlDev 0 busId 83000 commId 0x6a1a7d6fef33049d - Init COMPLETE
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:900 [0] NCCL INFO Init timings - ncclCommInitRankConfig_impl: rank 1 nranks 2 total 4.41 (kernels 2.37, alloc 0.20, bootstrap 0.00, allgathers 0.00, topo 0.01, graphs 0.00, connections 1.83, rest 0.00)
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:906 [0] NCCL INFO Channel 02/1 : 0[0] -> 1[0] [receive] via NET/IB/0/GDRDMA/Shared comm 0x4b1626e0 nRanks 02
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:906 [0] NCCL INFO Channel 03/1 : 0[0] -> 1[0] [receive] via NET/IB/0/GDRDMA/Shared comm 0x4b1626e0 nRanks 02
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:905 [0] NCCL INFO recvProxyProgress: issued GDR flush
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:831 [0] NCCL INFO Memory used = 151585128
+mn-deployment-example-s1-7c5b4c57b7-wwz85:831:910 [0] NCCL INFO comm 0x4b1626e0 rank 1 nranks 2 cudaDev 0 busId 83000 - Destroy COMPLETE

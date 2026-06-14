@@ -1,0 +1,127 @@
+# Scenario 2: Pods Sharing the Host Network
+
+# Rank: 0
+# Pod: mn-deployment-example-s2-76886584f7-fcvtn
+# DOKS worker: rs-mn-mi350x8-pool-381iaf
+
+root@rs-mn-mi350x8-pool-381iaf:/#  NCCL_DEBUG=INFO \
+    NCCL_IB_GID_INDEX=0 \
+    NCCL_SOCKET_IFNAME=eth1 \
+    NCCL_IB_QPS_PER_CONNECTION=8 \
+    NCCL_P2P_CHUNKSIZE=16777216 \
+    MASTER_ADDR=10.120.0.11 \
+    MASTER_PORT=12355 \
+    WORLD_SIZE=2 \
+    RANK=0 \
+    NCCL_IB_HCA=ionic_0 \
+    GPU_ID=0 \
+    python3 /p2p_bw_test.py
+
+Rank 0 / 2: using GPU 0
+Rank 0 / 2: allocating tensor
+rs-mn-mi350x8-pool-381iaf:830:830 [0] NCCL INFO Kernel version: 6.12.48+deb13-amd64
+
+[2026-06-14 22:15:22] rs-mn-mi350x8-pool-381iaf:830:830 [0] /longer_pathname_so_that_rpms_can_support_packaging_the_debug_info_for_all_os_profiles/src/out/ubuntu-24.04/24.04/build/rccl/hipify/src/init.cc:218 NCCL WARN Missing "iommu=pt" from kernel command line which can lead to system instablity or hang!
+rs-mn-mi350x8-pool-381iaf:830:830 [0] NCCL INFO Hipruntime version: 70253211, firmware version: 34
+rs-mn-mi350x8-pool-381iaf:830:830 [0] NCCL INFO NCCL_SOCKET_IFNAME set by environment to eth1
+rs-mn-mi350x8-pool-381iaf:830:830 [0] NCCL INFO Bootstrap: Using eth1:10.120.0.11<0>
+rs-mn-mi350x8-pool-381iaf:830:830 [0] NCCL INFO ROCr version 1.18
+rs-mn-mi350x8-pool-381iaf:830:830 [0] NCCL INFO Dmabuf feature disabled without NCCL_DMABUF_ENABLE=1
+rs-mn-mi350x8-pool-381iaf:830:830 [0] NCCL INFO Kernel version: 6.12.48+deb13-amd64
+
+[2026-06-14 22:15:22] rs-mn-mi350x8-pool-381iaf:830:830 [0] /longer_pathname_so_that_rpms_can_support_packaging_the_debug_info_for_all_os_profiles/src/out/ubuntu-24.04/24.04/build/rccl/hipify/src/init.cc:218 NCCL WARN Missing "iommu=pt" from kernel command line which can lead to system instablity or hang!
+rs-mn-mi350x8-pool-381iaf:830:830 [0] NCCL INFO RCCL version : 2.27.7-HEAD:96a25b5
+HIP version  : 7.2.53211-671d39a71e
+ROCm version : 7.2.2.0-86-671d39a71e
+Hostname     : rs-mn-mi350x8-pool-381iaf
+Librccl path : /opt/rocm/lib/librccl.so.1
+rs-mn-mi350x8-pool-381iaf:830:830 [0] NCCL INFO Comm config Blocking set to 1
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. 
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO NCCL_SOCKET_IFNAME set by environment to eth1
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO NCCL_IB_HCA set to ionic_0
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO NET/IB : Using [0]ionic_0:1/RoCE [RO]; OOB eth1:10.120.0.11<0>
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Initialized NET plugin IB
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Found ib_register_peer_memory_client in /proc/kallsyms
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Assigned NET plugin IB to comm
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Using network IB
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO [node_id = 3; gpu_id = 57996; unique_id = 2463443096819586348; location_id = 35584; bdf = 35584; domain = 0; partition = 0], 
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO [node_id = 9; gpu_id = 63128; unique_id = 4095754212084995690; location_id = 47872; bdf = 47872; domain = 0; partition = 0], 
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO [node_id = 5; gpu_id = 11905; unique_id = 6101270995465120805; location_id = 39680; bdf = 39680; domain = 0; partition = 0], 
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO [node_id = 6; gpu_id = 64658; unique_id = 7514956142716744171; location_id = 41728; bdf = 41728; domain = 0; partition = 0], 
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO [node_id = 8; gpu_id = 12447; unique_id = 8109543173439212874; location_id = 45824; bdf = 45824; domain = 0; partition = 0], 
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO [node_id = 2; gpu_id = 9355; unique_id = 13939135878841031417; location_id = 33536; bdf = 33536; domain = 0; partition = 0], 
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO [node_id = 4; gpu_id = 59526; unique_id = 16216608115909667446; location_id = 37632; bdf = 37632; domain = 0; partition = 0], 
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO [node_id = 7; gpu_id = 14997; unique_id = 16359078348342282095; location_id = 43776; bdf = 43776; domain = 0; partition = 0], 
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO initialized internal alternative rsmi functionality
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO ncclCommInitRankConfig_impl comm 0x352163b0 rank 0 nranks 2 cudaDev 0 nvmlDev 0 busId 83000 commId 0xc59dcd1462eb73d - Init START
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO RAS client listening socket at ::1<28028>
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Bootstrap timings total 0.029449 (create 0.000067, send 0.000278, recv 0.026809, ring 0.000118, delay 0.000000)
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO initialized internal alternative rsmi functionality
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO RCCL PXN set as disabled
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Setting affinity for GPU 0 to 0-95
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO GFX9 cheap fence is ON
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO comm 0x352163b0 rank 0 nRanks 2 nNodes 2 localRanks 1 localRank 0 MNNVL 0
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 00/08 : 0 1
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 01/08 : 0 1
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 02/08 : 0 1
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 03/08 : 0 1
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 04/08 : 0 1
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 05/08 : 0 1
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 06/08 : 0 1
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 07/08 : 0 1
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Trees [0] 1/-1/-1->0->-1 [1] 1/-1/-1->0->-1 [2] -1/-1/-1->0->1 [3] -1/-1/-1->0->1 [4] 1/-1/-1->0->-1 [5] 1/-1/-1->0->-1 [6] -1/-1/-1->0->1 [7] -1/-1/-1->0->1 comm 0x352163b0 nRanks 02 busId 83000
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO RCCL P2P net chunk size default set to: 131072
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO P2P Chunksize set to 131072
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO PROFILER/Plugin: Could not find: librccl-profiler.so. 
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Check P2P Type isAllDirectP2p 0 directMode 0
+rs-mn-mi350x8-pool-381iaf:830:904 [0] NCCL INFO [Proxy Service] Device 0 CPU core 1
+rs-mn-mi350x8-pool-381iaf:830:905 [0] NCCL INFO [Proxy Service UDS] Device 0 CPU core 3
+rs-mn-mi350x8-pool-381iaf:830:906 [0] NCCL INFO [Proxy Progress] Device 0 CPU core 5
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 00/0 : 1[0] -> 0[0] [receive] via NET/IB/0/GDRDMA comm 0x352163b0 nRanks 02
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 01/0 : 1[0] -> 0[0] [receive] via NET/IB/0/GDRDMA comm 0x352163b0 nRanks 02
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 02/0 : 1[0] -> 0[0] [receive] via NET/IB/0/GDRDMA comm 0x352163b0 nRanks 02
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 03/0 : 1[0] -> 0[0] [receive] via NET/IB/0/GDRDMA comm 0x352163b0 nRanks 02
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 04/0 : 1[0] -> 0[0] [receive] via NET/IB/0/GDRDMA comm 0x352163b0 nRanks 02
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 05/0 : 1[0] -> 0[0] [receive] via NET/IB/0/GDRDMA comm 0x352163b0 nRanks 02
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 06/0 : 1[0] -> 0[0] [receive] via NET/IB/0/GDRDMA comm 0x352163b0 nRanks 02
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 07/0 : 1[0] -> 0[0] [receive] via NET/IB/0/GDRDMA comm 0x352163b0 nRanks 02
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 00/0 : 0[0] -> 1[0] [send] via NET/IB/0/GDRDMA comm 0x352163b0 nRanks 02
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 01/0 : 0[0] -> 1[0] [send] via NET/IB/0/GDRDMA comm 0x352163b0 nRanks 02
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 02/0 : 0[0] -> 1[0] [send] via NET/IB/0/GDRDMA comm 0x352163b0 nRanks 02
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 03/0 : 0[0] -> 1[0] [send] via NET/IB/0/GDRDMA comm 0x352163b0 nRanks 02
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 04/0 : 0[0] -> 1[0] [send] via NET/IB/0/GDRDMA comm 0x352163b0 nRanks 02
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 05/0 : 0[0] -> 1[0] [send] via NET/IB/0/GDRDMA comm 0x352163b0 nRanks 02
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 06/0 : 0[0] -> 1[0] [send] via NET/IB/0/GDRDMA comm 0x352163b0 nRanks 02
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Channel 07/0 : 0[0] -> 1[0] [send] via NET/IB/0/GDRDMA comm 0x352163b0 nRanks 02
+rs-mn-mi350x8-pool-381iaf:830:904 [0] NCCL INFO NCCL_IB_QPS_PER_CONNECTION set by environment to 8.
+rs-mn-mi350x8-pool-381iaf:830:904 [0] NCCL INFO NCCL_IB_GID_INDEX set by environment to 0.
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Connected all rings, use ring PXN 0 GDR 1
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Connected all trees
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Connected binomial trees
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO RCCL Tuning index:0
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO threadThresholds 8/8/64 | 16/8/64 | 256 | 256
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO comm:0x352163b0, nRanks:2, nNodes:2, coll channels:8 collnet channels:8, nvls channels:0, p2p channels:8, p2p channels per peer:2
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO CC Off, workFifoBytes 4194304
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO RCCL Unroll Factor (pre-set): 2
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO ncclCommInitRankConfig_impl comm 0x352163b0 rank 0 nranks 2 cudaDev 0 nvmlDev 0 busId 83000 commId 0xc59dcd1462eb73d - Init COMPLETE
+rs-mn-mi350x8-pool-381iaf:830:901 [0] NCCL INFO Init timings - ncclCommInitRankConfig_impl: rank 0 nranks 2 total 6.82 (kernels 4.75, alloc 0.22, bootstrap 0.03, allgathers 0.00, topo 0.01, graphs 0.00, connections 1.81, rest 0.00)
+rs-mn-mi350x8-pool-381iaf:830:907 [0] NCCL INFO Channel 02/1 : 0[0] -> 1[0] [send] via NET/IB/0/GDRDMA/Shared comm 0x352163b0 nRanks 02
+rs-mn-mi350x8-pool-381iaf:830:907 [0] NCCL INFO Channel 03/1 : 0[0] -> 1[0] [send] via NET/IB/0/GDRDMA/Shared comm 0x352163b0 nRanks 02
+iter 0: 0.5511 sec
+iter 1: 0.5559 sec
+iter 2: 0.5521 sec
+iter 3: 0.5521 sec
+iter 4: 0.5511 sec
+iter 5: 0.5560 sec
+iter 6: 0.5539 sec
+iter 7: 0.5513 sec
+iter 8: 0.5529 sec
+iter 9: 0.5535 sec
+
+==== RESULT ====
+Avg time: 0.5530 sec
+Bandwidth: 248.54 Gbps
+Bandwidth: 28.93 GiB/s
+rs-mn-mi350x8-pool-381iaf:830:830 [0] NCCL INFO Memory used = 134807880
+rs-mn-mi350x8-pool-381iaf:830:911 [0] NCCL INFO comm 0x352163b0 rank 0 nranks 2 cudaDev 0 busId 83000 - Destroy COMPLETE

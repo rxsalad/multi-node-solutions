@@ -615,7 +615,7 @@ root@rs-mi350x8-mn-test1:~/pytorch_example# docker run --rm -it --hostname test-
     python3 /root/pytorch_example/p2p_bw_test.py
   "
 
-root@rs-mi350x8-mn-test1:~/pytorch_example# docker run --rm -it --hostname test-server2 \
+root@rs-mi350x8-mn-test2:~/pytorch_example# docker run --rm -it --hostname test-server2 \
   -v /root/pytorch_example/p2p_bw_test.py:/root/pytorch_example/p2p_bw_test.py \
   --device=/dev/kfd \
   --device=/dev/dri \
