@@ -2090,7 +2090,6 @@ root@mn-deployment-example-s1-7c5b4c57b7-wwz85:/# NCCL_DEBUG=INFO \
     python3 p2p_bw_test.py
 ```
 
-
 These commands launch a two-Pod RCCL-based GPU point-to-point benchmark in which rank 0 transfers a large tensor from GPU0 on the first Pod to GPU0 on the second Pod over RDMA/RoCE using the ionic_0 NIC. The program measures sustained inter-node GPU-to-GPU bandwidth using the event-based timing across multiple iterations.
 
 At runtime, RCCL first performs a TCP-based bootstrap over the control-plane interface `eth0` on the Pod. Using the `MASTER_ADDR:MASTER_PORT` (**10.121.1.4:12355**) rendezvous mechanism, both processes connect, discover each other, and exchange a `ncclUniqueId`, which serves as the initialization token for constructing the distributed communicator. 
@@ -2101,7 +2100,7 @@ It is important to distinguish between the logical RDMA device and the underlyin
 
 To run the same test on MI325x8 nodes, the values of NCCL_IB_GID_INDEX and NCCL_IB_HCA must be adjusted because MI325x8 nodes use a different NIC type than MI350x8 nodes. Additionally, MASTER_ADDR must be the IP address of the rank 0 Pod's eth0 interface.
 
-Check [amd-mn-doks/mn-deployment-example-s1-7c5b4c57b7-dgv64.txt](amd-mn-doks/mn-deployment-example-s1-7c5b4c57b7-dgv64.txt) and [amd-mn-doks//mn-deployment-example-s1-7c5b4c57b7-wwz85.txt](amd-mn-doks//mn-deployment-example-s1-7c5b4c57b7-wwz85.txt) for the corresponding output logs. You can see that the measured bandwidth is still lower than the theoretical 400 Gb/s. This can be further optimized by tuning NCCL/RCCL environment variables such as the number of channels, chunk size, and other communication parameters.
+Check [amd-mn-doks/mn-deployment-example-s1-7c5b4c57b7-dgv64.txt](amd-mn-doks/mn-deployment-example-s1-7c5b4c57b7-dgv64.txt) and [amd-mn-doks/mn-deployment-example-s1-7c5b4c57b7-wwz85.txt](amd-mn-doks/mn-deployment-example-s1-7c5b4c57b7-wwz85.txt) for the corresponding output logs. You can see that the measured bandwidth is still lower than the theoretical 400 Gb/s. This can be further optimized by tuning NCCL/RCCL environment variables such as the number of channels, chunk size, and other communication parameters.
 
 **Note:** You may see the following warning in the debug logs:
 `NCCL WARN Missing "iommu=pt" from kernel command line which can lead to system instability or hangs!`
@@ -2111,9 +2110,123 @@ This warning is not relevant when the bare metal host uses SR-IOV to expose GPUs
 
 ### Scenario 2: Pods Sharing the Host Network
 
+Build the Kubernetes manifest [amd-mn-doks/mn-deployment-example-s2.yaml](amd-mn-doks/mn-deployment-example-s2.yaml) to create 2 Pods:
+
+<details>
+<summary>mn-deployment-example-s2.yaml</summary>
+
+``` yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mn-deployment-example-s2
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mn-deployment-example-s2
+  template:
+    metadata:
+      labels:
+        app: mn-deployment-example-s2
+
+    spec:
+      restartPolicy: Always
+
+      nodeSelector:
+        doks.digitalocean.com/gpu-brand: amd
+
+      tolerations:
+        - key: amd.com/gpu
+          operator: Exists
+          effect: NoSchedule
+
+      volumes:
+        - name: temp-hf-cache
+          hostPath:
+            path: /root/.cache/huggingface
+            type: DirectoryOrCreate
+
+        - name: dshm 
+          emptyDir:
+            medium: Memory
+            sizeLimit: 128Gi
+
+        - name: temp-python-script       
+          configMap:
+            name: mn-python-script
+
+      # hostNetwork: true makes the Pod use the host’s network namespace, sharing the node’s IP and interfaces instead of a Pod IP, which is common for RDMA/NCCL workloads. 
+      # It typically inherits the node’s hostname but can be overridden with spec.hostname.
+      hostNetwork: true
+      
+      containers:
+
+        - name: server
+          image: rocm/pytorch:rocm7.2.2_ubuntu24.04_py3.12_pytorch_release_2.7.1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http-example
+
+          command: ["/bin/bash", "-lc"]
+          args:
+            - |
+             set -ex
+          
+             apt update
+             apt install -y iproute2 iputils-ping infiniband-diags ibverbs-utils
+             
+             # For MI350x8, to install userspace RDMA provider for AMD Pensando Pollara NICs, and not required for MI325x8
+             echo 'deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/amdainic/pensando/ubuntu/1.117.1-a-63 noble main' > /etc/apt/sources.list.d/ainic.list    
+             apt update &&  apt install -y libionic1
+
+             exec sleep infinity 
+
+          securityContext:
+            #privileged: true
+            capabilities:
+              add:
+              - IPC_LOCK
+
+          volumeMounts:
+            - name: temp-hf-cache
+              mountPath: /root/.cache/huggingface
+
+            - name: dshm
+              mountPath: /dev/shm
+
+            - name: temp-python-script
+              mountPath: /p2p_bw_test.py
+              subPath: p2p_bw_test.py
+
+          resources:
+            limits:
+              amd.com/gpu: "8"
+              rdma/fabric0: 1
+              rdma/fabric1: 1
+              rdma/fabric2: 1
+              rdma/fabric3: 1
+              rdma/fabric4: 1
+              rdma/fabric5: 1
+              rdma/fabric6: 1
+              rdma/fabric7: 1 
+            requests:
+              amd.com/gpu: "8"
+              rdma/fabric0: 1
+              rdma/fabric1: 1
+              rdma/fabric2: 1
+              rdma/fabric3: 1
+              rdma/fabric4: 1
+              rdma/fabric5: 1
+              rdma/fabric6: 1
+              rdma/fabric7: 1 
+```
 
 </details>
 </br>
+
 
 ``` bash
 # kubectl apply -f amd-mn-doks/mn-deployment-example-s2.yaml
@@ -2124,9 +2237,397 @@ mn-deployment-example-s2-76886584f7-fcvtn   1/1     Running   0          73s   1
 mn-deployment-example-s2-76886584f7-lzrjn   1/1     Running   0          73s   10.120.0.3    rs-mn-mi350x8-pool-381iaq   <none>           <none>
 
 # kubectl delete -f amd-mn-doks/mn-deployment-example-s2.yaml
+```
 
+Run the following commands to inspect the Pod mn-deployment-example-s2-76886584f7-fcvtn running on the DOKS worker rs-mn-mi350x8-pool-381iaf:
+
+<details>
+<summary>Within the Pod</summary>
+
+``` bash
+# kubectl exec -it mn-deployment-example-s2-76886584f7-fcvtn -- /bin/bash
+
+# The Pod inherits the node’s hostname 
+root@rs-mn-mi350x8-pool-381iaf:/# ip -br a
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+eth0             UP             159.89.134.60/20 fe80::cc9b:13ff:fe26:6327/64 
+fabric0          UP             fe80::490:81ff:fe49:c440/64 
+eth1             UP             10.120.0.11/20 fe80::94da:37ff:fece:c90f/64 
+fabric1          UP             fe80::490:81ff:fe49:488/64 
+fabric2          UP             fe80::490:81ff:fe49:18f8/64 
+fabric3          UP             fe80::490:81ff:fe4a:6fb8/64 
+fabric4          UP             fe80::490:81ff:fe49:85d0/64 
+fabric5          UP             fe80::490:81ff:fe49:cbc0/64 
+fabric6          UP             fe80::490:81ff:fe49:d280/64 
+fabric7          UP             fe80::490:81ff:fe49:1eb0/64 
+cpbridge         UNKNOWN        100.65.9.120/32 fe80::dc0c:c1ff:fec0:e40a/64 
+anchor           UNKNOWN        10.46.0.9/16 fe80::308b:d9ff:fe70:74bc/64 
+cilium_net@cilium_host UP             fe80::847f:35ff:fefa:1d6e/64 
+cilium_host@cilium_net UP             10.121.1.67/32 fe80::48c:8fff:feda:e44e/64 
+lxc_health@if16  UP             fe80::64d0:79ff:fead:505c/64 
+lxc0210366d1bbd@if18 UP             fe80::fc01:5aff:fe70:93b3/64
 ```
 </details>
+</br>
+
+<details>
+<summary>K8S Pod</summary>
+
+``` bash
+# kubectl describe pod mn-deployment-example-s2-76886584f7-fcvtn
+
+Name:             mn-deployment-example-s2-76886584f7-fcvtn
+Namespace:        default
+Priority:         0
+Service Account:  default
+Node:             rs-mn-mi350x8-pool-381iaf/10.120.0.11
+Start Time:       Sun, 14 Jun 2026 22:04:29 +0000
+Labels:           app=mn-deployment-example-s2
+                  pod-template-hash=76886584f7
+Annotations:      <none>
+Status:           Running
+IP:               10.120.0.11
+IPs:
+  IP:           10.120.0.11
+Controlled By:  ReplicaSet/mn-deployment-example-s2-76886584f7
+Containers:
+  server:
+    Container ID:  containerd://c86aec72204e55376eb34755c5ff19ef70263d980f997935d39641c98083fc29
+    Image:         rocm/pytorch:rocm7.2.2_ubuntu24.04_py3.12_pytorch_release_2.7.1
+    Image ID:      docker.io/rocm/pytorch@sha256:b868c3f1291d97e706b18a96b7a1bff0bf89c4e91dd06dc3cbb0ecb89c446221
+    Port:          8000/TCP (http-example)
+    Host Port:     8000/TCP (http-example)
+    Command:
+      /bin/bash
+      -lc
+    Args:
+      set -ex
+      
+      apt update
+      apt install -y iproute2 iputils-ping infiniband-diags ibverbs-utils
+      
+      # For MI350x8, to install userspace RDMA provider for AMD Pensando Pollara NICs, and not required for MI325x8
+      echo 'deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/amdainic/pensando/ubuntu/1.117.1-a-63 noble main' > /etc/apt/sources.list.d/ainic.list    
+      apt update &&  apt install -y libionic1
+      
+      exec sleep infinity 
+      
+    State:          Running
+      Started:      Sun, 14 Jun 2026 22:04:30 +0000
+    Ready:          True
+    Restart Count:  0
+    Limits:
+      amd.com/gpu:   8
+      rdma/fabric0:  1
+      rdma/fabric1:  1
+      rdma/fabric2:  1
+      rdma/fabric3:  1
+      rdma/fabric4:  1
+      rdma/fabric5:  1
+      rdma/fabric6:  1
+      rdma/fabric7:  1
+    Requests:
+      amd.com/gpu:   8
+      rdma/fabric0:  1
+      rdma/fabric1:  1
+      rdma/fabric2:  1
+      rdma/fabric3:  1
+      rdma/fabric4:  1
+      rdma/fabric5:  1
+      rdma/fabric6:  1
+      rdma/fabric7:  1
+    Environment:     <none>
+    Mounts:
+      /dev/shm from dshm (rw)
+      /p2p_bw_test.py from temp-python-script (rw,path="p2p_bw_test.py")
+      /root/.cache/huggingface from temp-hf-cache (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-tzwm4 (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       True 
+  ContainersReady             True 
+  PodScheduled                True 
+Volumes:
+  temp-hf-cache:
+    Type:          HostPath (bare host directory volume)
+    Path:          /root/.cache/huggingface
+    HostPathType:  DirectoryOrCreate
+  dshm:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     Memory
+    SizeLimit:  128Gi
+  temp-python-script:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      mn-python-script
+    Optional:  false
+  kube-api-access-tzwm4:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              doks.digitalocean.com/gpu-brand=amd
+Tolerations:                 amd.com/gpu:NoSchedule op=Exists
+                             node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  38m   default-scheduler  Successfully assigned default/mn-deployment-example-s2-76886584f7-fcvtn to rs-mn-mi350x8-pool-381iaf
+  Normal  Pulling    38m   kubelet            spec.containers{server}: Pulling image "rocm/pytorch:rocm7.2.2_ubuntu24.04_py3.12_pytorch_release_2.7.1"
+  Normal  Pulled     38m   kubelet            spec.containers{server}: Successfully pulled image "rocm/pytorch:rocm7.2.2_ubuntu24.04_py3.12_pytorch_release_2.7.1" in 438ms (438ms including waiting). Image size: 9950578366 bytes.
+  Normal  Created    38m   kubelet            spec.containers{server}: Created container: server
+  Normal  Started    38m   kubelet            spec.containers{server}: Started container server
+
+# kubectl get pod mn-deployment-example-s2-76886584f7-fcvtn -o json | jq '.spec.containers[].resources'
+{
+  "limits": {
+    "amd.com/gpu": "8",
+    "rdma/fabric0": "1",
+    "rdma/fabric1": "1",
+    "rdma/fabric2": "1",
+    "rdma/fabric3": "1",
+    "rdma/fabric4": "1",
+    "rdma/fabric5": "1",
+    "rdma/fabric6": "1",
+    "rdma/fabric7": "1"
+  },
+  "requests": {
+    "amd.com/gpu": "8",
+    "rdma/fabric0": "1",
+    "rdma/fabric1": "1",
+    "rdma/fabric2": "1",
+    "rdma/fabric3": "1",
+    "rdma/fabric4": "1",
+    "rdma/fabric5": "1",
+    "rdma/fabric6": "1",
+    "rdma/fabric7": "1"
+  }
+}
+```
+
+</details>
+</br>
+
+Run the following commands to verify network and RDMA/RoCE configuration for the DOKS worker: rs-mn-mi350x8-pool-381iaf:
+
+
+<details>
+<summary>Host OS</summary>
+
+``` bash
+# ip -br a
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+eth0             UP             159.89.134.60/20 fe80::cc9b:13ff:fe26:6327/64 
+fabric0          UP             fe80::490:81ff:fe49:c440/64 
+eth1             UP             10.120.0.11/20 fe80::94da:37ff:fece:c90f/64 
+fabric1          UP             fe80::490:81ff:fe49:488/64 
+fabric2          UP             fe80::490:81ff:fe49:18f8/64 
+fabric3          UP             fe80::490:81ff:fe4a:6fb8/64 
+fabric4          UP             fe80::490:81ff:fe49:85d0/64 
+fabric5          UP             fe80::490:81ff:fe49:cbc0/64 
+fabric6          UP             fe80::490:81ff:fe49:d280/64 
+fabric7          UP             fe80::490:81ff:fe49:1eb0/64 
+cpbridge         UNKNOWN        100.65.9.120/32 fe80::dc0c:c1ff:fec0:e40a/64 
+anchor           UNKNOWN        10.46.0.9/16 fe80::308b:d9ff:fe70:74bc/64 
+cilium_net@cilium_host UP             fe80::847f:35ff:fefa:1d6e/64 
+cilium_host@cilium_net UP             10.121.1.67/32 fe80::48c:8fff:feda:e44e/64 
+lxc_health@if16  UP             fe80::64d0:79ff:fead:505c/64 
+lxc0210366d1bbd@if18 UP             fe80::fc01:5aff:fe70:93b3/64 
+
+# rdma link
+link ionic_0/1 state ACTIVE physical_state LINK_UP netdev fabric0 
+link ionic_1/1 state ACTIVE physical_state LINK_UP netdev fabric1 
+link ionic_2/1 state ACTIVE physical_state LINK_UP netdev fabric2 
+link ionic_3/1 state ACTIVE physical_state LINK_UP netdev fabric3 
+link ionic_4/1 state ACTIVE physical_state LINK_UP netdev fabric4 
+link ionic_5/1 state ACTIVE physical_state LINK_UP netdev fabric5 
+link ionic_6/1 state ACTIVE physical_state LINK_UP netdev fabric6 
+link ionic_7/1 state ACTIVE physical_state LINK_UP netdev fabric7 
+```
+</details>
+</br>
+
+
+<details>
+<summary>K8S Node</summary>
+
+``` bash
+# kubectl describe node rs-mn-mi350x8-pool-381iaf
+Name:               rs-mn-mi350x8-pool-381iaf
+Roles:              <none>
+Labels:             amd.com/gpu=8
+                    beta.kubernetes.io/arch=amd64
+                    beta.kubernetes.io/instance-type=gpu-mi350x8-2304gb-fabric-contracted
+                    beta.kubernetes.io/os=linux
+                    doks.digitalocean.com/gpu-brand=amd
+                    doks.digitalocean.com/gpu-model=mi350x
+                    doks.digitalocean.com/is-gpu-fabric-connected=true
+                    doks.digitalocean.com/managed=true
+                    doks.digitalocean.com/node-id=640271ca-4f12-4a1d-b3b8-4f0c423de23c
+                    doks.digitalocean.com/node-pool=rs-mn-mi350x8-pool
+                    doks.digitalocean.com/node-pool-id=269062e6-0689-49ed-9a7d-bb80779adbb9
+                    doks.digitalocean.com/version=1.34.1-do.2
+                    failure-domain.beta.kubernetes.io/region=sfo2
+                    kubernetes.io/arch=amd64
+                    kubernetes.io/hostname=rs-mn-mi350x8-pool-381iaf
+                    kubernetes.io/os=linux
+                    node.kubernetes.io/instance-type=gpu-mi350x8-2304gb-fabric-contracted
+                    region=sfo2
+                    topology.kubernetes.io/region=sfo2
+Annotations:        alpha.kubernetes.io/provided-node-ip: 10.120.0.11
+                    csi.volume.kubernetes.io/nodeid: {"dobs.csi.digitalocean.com":"574372196"}
+                    network.cilium.io/ipv4-Ingress-ip: 10.121.1.36
+                    network.cilium.io/ipv4-cilium-host: 10.121.1.67
+                    network.cilium.io/ipv4-health-ip: 10.121.1.61
+                    network.cilium.io/ipv4-pod-cidr: 10.121.1.0/25
+                    node.alpha.kubernetes.io/ttl: 0
+                    volumes.kubernetes.io/controller-managed-attach-detach: true
+CreationTimestamp:  Sun, 31 May 2026 18:59:58 +0000
+Taints:             amd.com/gpu:NoSchedule
+Unschedulable:      false
+Lease:
+  HolderIdentity:  rs-mn-mi350x8-pool-381iaf
+  AcquireTime:     <unset>
+  RenewTime:       Sun, 14 Jun 2026 22:48:20 +0000
+Conditions:
+  Type                             Status  LastHeartbeatTime                 LastTransitionTime                Reason                       Message
+  ----                             ------  -----------------                 ------------------                ------                       -------
+  NetworkUnavailable               False   Sun, 31 May 2026 19:00:48 +0000   Sun, 31 May 2026 19:00:48 +0000   CiliumIsUp                   Cilium is running on this node
+  MemoryPressure                   False   Sun, 14 Jun 2026 22:47:27 +0000   Sun, 31 May 2026 18:59:58 +0000   KubeletHasSufficientMemory   kubelet has sufficient memory available
+  DiskPressure                     False   Sun, 14 Jun 2026 22:47:27 +0000   Sun, 31 May 2026 18:59:58 +0000   KubeletHasNoDiskPressure     kubelet has no disk pressure
+  PIDPressure                      False   Sun, 14 Jun 2026 22:47:27 +0000   Sun, 31 May 2026 18:59:58 +0000   KubeletHasSufficientPID      kubelet has sufficient PID available
+  Ready                            True    Sun, 14 Jun 2026 22:47:27 +0000   Sun, 31 May 2026 19:00:42 +0000   KubeletReady                 kubelet is posting ready status
+  doks.kubernetes.io/AmdGpuReady   True    Sun, 14 Jun 2026 22:48:09 +0000   Sun, 31 May 2026 19:01:09 +0000   EndpointOK                   Endpoint reports ready at http://127.0.0.1:5000/metrics
+Addresses:
+  InternalIP:  10.120.0.11
+  Hostname:    rs-mn-mi350x8-pool-381iaf
+  ExternalIP:  159.89.134.60
+Capacity:
+  amd.com/gpu:        8
+  cpu:                192
+  ephemeral-storage:  2111508792Ki
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             2113762624Ki
+  pods:               110
+  rdma/fabric0:       100
+  rdma/fabric1:       100
+  rdma/fabric10:      0
+  rdma/fabric11:      0
+  rdma/fabric12:      0
+  rdma/fabric13:      0
+  rdma/fabric14:      0
+  rdma/fabric15:      0
+  rdma/fabric2:       100
+  rdma/fabric3:       100
+  rdma/fabric4:       100
+  rdma/fabric5:       100
+  rdma/fabric6:       100
+  rdma/fabric7:       100
+  rdma/fabric8:       0
+  rdma/fabric9:       0
+Allocatable:
+  amd.com/gpu:        8
+  cpu:                191420m
+  ephemeral-storage:  1945966499486
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             2064043328Ki
+  pods:               110
+  rdma/fabric0:       100
+  rdma/fabric1:       100
+  rdma/fabric10:      0
+  rdma/fabric11:      0
+  rdma/fabric12:      0
+  rdma/fabric13:      0
+  rdma/fabric14:      0
+  rdma/fabric15:      0
+  rdma/fabric2:       100
+  rdma/fabric3:       100
+  rdma/fabric4:       100
+  rdma/fabric5:       100
+  rdma/fabric6:       100
+  rdma/fabric7:       100
+  rdma/fabric8:       0
+  rdma/fabric9:       0
+System Info:
+  Machine ID:                 10973a39aa974aeeb6f1592d263e5c80
+  System UUID:                10973a39-aa97-4aee-b6f1-592d263e5c80
+  Boot ID:                    d4bf0a18-e8f3-402d-a87e-b3963c71fd55
+  Kernel Version:             6.12.48+deb13-amd64
+  OS Image:                   Debian GNU/Linux 13 (trixie)
+  Operating System:           linux
+  Architecture:               amd64
+  Container Runtime Version:  containerd://1.7.28
+  Kubelet Version:            v1.34.1
+  Kube-Proxy Version:         
+ProviderID:                   digitalocean://574372196
+Non-terminated Pods:          (9 in total)
+  Namespace                   Name                                               CPU Requests  CPU Limits  Memory Requests  Memory Limits  Age
+  ---------                   ----                                               ------------  ----------  ---------------  -------------  ---
+  default                     mn-deployment-example-s2-76886584f7-fcvtn          0 (0%)        0 (0%)      0 (0%)           0 (0%)         43m
+  kube-system                 amd-gpu-device-plugin-2l72n                        0 (0%)        0 (0%)      0 (0%)           0 (0%)         14d
+  kube-system                 cilium-mbz2g                                       320m (0%)     0 (0%)      350Mi (0%)       50Mi (0%)      14d
+  kube-system                 cpc-bridge-proxy-ebpf-n9x7k                        100m (0%)     0 (0%)      75Mi (0%)        0 (0%)         14d
+  kube-system                 csi-do-node-nmvc2                                  0 (0%)        0 (0%)      0 (0%)           0 (0%)         14d
+  kube-system                 do-node-agent-amd-device-metrics-exporter-c5qvx    312m (0%)     1010m (0%)  312Mi (0%)       1356Mi (0%)    14d
+  kube-system                 doks-telemetry-config-reloader-4dp8p               0 (0%)        0 (0%)      0 (0%)           0 (0%)         14d
+  kube-system                 kube-multus-ds-9h88k                               100m (0%)     100m (0%)   50Mi (0%)        50Mi (0%)      28h
+  kube-system                 rdma-shared-dp-ds-mfhxs                            0 (0%)        0 (0%)      0 (0%)           0 (0%)         14d
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests    Limits
+  --------           --------    ------
+  cpu                832m (0%)   1110m (0%)
+  memory             787Mi (0%)  1456Mi (0%)
+  ephemeral-storage  5Gi (0%)    10Gi (0%)
+  hugepages-1Gi      0 (0%)      0 (0%)
+  hugepages-2Mi      0 (0%)      0 (0%)
+  amd.com/gpu        8           8
+  rdma/fabric0       1           1
+  rdma/fabric1       1           1
+  rdma/fabric10      0           0
+  rdma/fabric11      0           0
+  rdma/fabric12      0           0
+  rdma/fabric13      0           0
+  rdma/fabric14      0           0
+  rdma/fabric15      0           0
+  rdma/fabric2       1           1
+  rdma/fabric3       1           1
+  rdma/fabric4       1           1
+  rdma/fabric5       1           1
+  rdma/fabric6       1           1
+  rdma/fabric7       1           1
+  rdma/fabric8       0           0
+  rdma/fabric9       0           0
+Events:              <none>
+
+# kubectl get pods -A -o wide --field-selector spec.nodeName=rs-mn-mi350x8-pool-381iaf
+NAMESPACE     NAME                                              READY   STATUS    RESTARTS   AGE   IP            NODE                        NOMINATED NODE   READINESS GATES
+kube-system   amd-gpu-device-plugin-2l72n                       1/1     Running   0          14d   10.121.1.19   rs-mn-mi350x8-pool-381iaf   <none>           <none>
+kube-system   cilium-mbz2g                                      2/2     Running   0          14d   10.120.0.11   rs-mn-mi350x8-pool-381iaf   <none>           <none>
+kube-system   cpc-bridge-proxy-ebpf-n9x7k                       1/1     Running   0          14d   10.120.0.11   rs-mn-mi350x8-pool-381iaf   <none>           <none>
+kube-system   csi-do-node-nmvc2                                 2/2     Running   0          14d   10.120.0.11   rs-mn-mi350x8-pool-381iaf   <none>           <none>
+kube-system   do-node-agent-amd-device-metrics-exporter-c5qvx   3/3     Running   0          14d   10.120.0.11   rs-mn-mi350x8-pool-381iaf   <none>           <none>
+kube-system   doks-telemetry-config-reloader-4dp8p              1/1     Running   0          14d   10.120.0.11   rs-mn-mi350x8-pool-381iaf   <none>           <none>
+kube-system   kube-multus-ds-9h88k                              1/1     Running   0          28h   10.120.0.11   rs-mn-mi350x8-pool-381iaf   <none>           <none>
+kube-system   rdma-shared-dp-ds-mfhxs                           1/1     Running   0          14d   10.120.0.11   rs-mn-mi350x8-pool-381iaf   <none>           <none>
+default       mn-deployment-example-s2-76886584f7-fcvtn         1/1     Running   0          45m   10.120.0.11   rs-mn-mi350x8-pool-381iaf   <none>           <none>
+
+# kubectl get nodes -l doks.digitalocean.com/gpu-brand=amd -o json | jq -r '.items[] | select(.status.capacity["rdma/fabric0"] == "0") | "\(.metadata.creationTimestamp)\t\(.metadata.name)"' | sort -r
+```
+</details>
+</br>
+
+In this setup, the eth0, eth1, and fabric0–fabric7 interfaces are shared between the Pod and the DOKS worker, meaning the Pod directly uses the host’s network stack for both Kubernetes and RDMA/RoCE applications.
+
+**RDMA/RoCE Testing over 2 Pods**
+
+To perform RDMA/RoCE testing between the two Pods, first start the rank 0 process on Pod mn-deployment-example-s2-76886584f7-fcvtn, which is running on DOKS worker rs-mn-mi350x8-pool-381iaf. Once rank 0 is running, launch the rank 1 process on Pod mn-deployment-example-s2-76886584f7-lzrjn, which is running on DOKS worker rs-mn-mi350x8-pool-381iaq. This order ensures that the rank 1 process can successfully establish the RDMA/RoCE connection with rank 0.
 
 ``` bash
 # Rank: 0
@@ -2154,7 +2655,7 @@ root@rs-mn-mi350x8-pool-381iaf:/# NCCL_DEBUG=INFO \
 
 root@rs-mn-mi350x8-pool-381iaq:/# NCCL_DEBUG=INFO \
     NCCL_IB_GID_INDEX=0 \
-    NCCL_SOCKET_IFNAME=eth1 \
+    NCCL_SOCKET_IFNAME=eth1 \ 
     NCCL_IB_QPS_PER_CONNECTION=8 \
     NCCL_P2P_CHUNKSIZE=16777216 \
     MASTER_ADDR=10.120.0.11 \
@@ -2166,7 +2667,17 @@ root@rs-mn-mi350x8-pool-381iaq:/# NCCL_DEBUG=INFO \
     python3 p2p_bw_test.py
 ```
 
+These commands launch a two-Pod RCCL-based GPU point-to-point benchmark in which rank 0 transfers a large tensor from GPU0 on the first Pod to GPU0 on the second Pod over RDMA/RoCE using the ionic_0 NIC. The program measures sustained inter-node GPU-to-GPU bandwidth using the event-based timing across multiple iterations.
 
+At runtime, RCCL first performs a TCP-based bootstrap over the control-plane interface `eth1` on the host (the DOKS worker). Using the `MASTER_ADDR:MASTER_PORT` (**10.120.0.11:12355**) rendezvous mechanism, both processes connect, discover each other, and exchange a `ncclUniqueId`, which serves as the initialization token for constructing the distributed communicator. 
+
+After this handshake completes, RCCL transitions from bootstrap to data-plane setup: it selects the RoCE device ionic_0 (as specified by `NCCL_IB_HCA`) and builds RDMA-based GPU communication paths. During this stage, it configures multiple queue pairs and communication channels (e.g., controlled by `NCCL_IB_QPS_PER_CONNECTION`), registers GPU memory for GPUDirect RDMA access, and establishes optimized data paths. Once initialization is finished, eth0 is no longer used for data movement; all tensor traffic flows directly over RDMA through ionic_0, enabling high-bandwidth, low-latency GPU-to-GPU communication across nodes.
+
+It is important to distinguish between the logical RDMA device and the underlying physical network configuration. NCCL communicates with `ionic_0` as the RDMA-capable interface exposed by the RoCE driver, rather than interacting directly with Ethernet interfaces such as `fabric0`. However, ionic_0 is physically backed by and configured through the underlying Ethernet interface eth2, meaning that key network properties—such as IP addressing, MTU, VLAN configuration, and link-level tuning—are defined at the eth2 layer. These settings indirectly affect the performance and behavior of RDMA communication, even though NCCL itself operates on the abstracted RDMA device ionic_0.
+
+To run the same test on MI325x8 nodes, the values of NCCL_IB_GID_INDEX and NCCL_IB_HCA must be adjusted because MI325x8 nodes use a different NIC type than MI350x8 nodes. Additionally, MASTER_ADDR must be the IP address of the rank 0 Pod's host eth1 interface.
+
+Check [amd-mn-doks/mn-deployment-example-s2-76886584f7-fcvtn.txt](amd-mn-doks/mn-deployment-example-s2-76886584f7-fcvtn.txt) and [amd-mn-doks/mn-deployment-example-s2-76886584f7-lzrjn.txt](amd-mn-doks/mn-deployment-example-s2-76886584f7-lzrjn.txt) for the corresponding output logs. 
 
 
 
