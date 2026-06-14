@@ -210,7 +210,6 @@ ping -c 1 -6 -I fabric0 fe80::490:81ff:fe49:1eb0 # Destination is peer fabric7
 
 In these examples, the destination link-local address is reachable only through its corresponding rail. Since no Layer 2 connectivity exists between different rails, Neighbor Discovery cannot resolve the destination MAC address and the communication attempt fails.
 
-
 ### VPC Native Routing Check
 
 Check host routing table on DOKS CPU and GPU workers:
@@ -251,7 +250,6 @@ Pod networking is VPC-native, with each node pool’s pod CIDR routed directly o
 The DOKS service subnet (the ClusterIP range, for example 10.120.32.0/19) does not appear in the host routing table because it is not a routable Layer 3 network. Instead, the service CIDR is implemented as a virtual address space in the Cilium eBPF dataplane. When traffic is sent to a ClusterIP address, Cilium performs in-kernel service load balancing and translates the virtual service IP to one of the backend pod endpoints. Because service traffic is intercepted and processed before a routing lookup occurs, no corresponding ip route entries are installed for the service CIDR.
 
 ### Worker Details - MI350x8 and MI325x8
-
 
 The MI350X and MI325X nodes expose RDMA networking through different driver stacks, which is reflected in their NIC naming and GID behavior. On the MI350X system, RDMA devices appear as ionic_*, representing AMD’s newer RoCE-focused networking stack where each interface is typically aligned with a GPU or PCI function and exposes only RoCE v2 GIDs (IPv6 link-local identifiers) for RDMA communication. 
 
@@ -405,7 +403,6 @@ link ionic_7/1 state ACTIVE physical_state LINK_UP netdev fabric7
 ```
 
 </details>
-<br>
 
 <details>
 <summary>MI325x8</summary>
@@ -624,7 +621,6 @@ kube-system   rdma-shared-dp-ds-6pzt6                           1/1     Running 
 kube-system   rdma-shared-dp-ds-mfhxs                           1/1     Running   0          12d  
 ```
 </details>
-
 
 ### Managed GPU Droplets
 
@@ -2052,7 +2048,7 @@ To perform RDMA/RoCE testing between the two Pods, first start the rank 0 proces
 
 root@mn-deployment-example-s1-7c5b4c57b7-dgv64:/# NCCL_DEBUG=INFO \
     NCCL_IB_GID_INDEX=0 \
-    NCCL_SOCKET_IFNAME=eth0 \
+    NCCL_SOCKET_IFNAME=eth0 \          # the rank 0 Pod's eth0 interface
     NCCL_IB_QPS_PER_CONNECTION=8 \
     NCCL_P2P_CHUNKSIZE=16777216 \
     MASTER_ADDR=10.121.1.4 \
@@ -2071,7 +2067,7 @@ root@mn-deployment-example-s1-7c5b4c57b7-dgv64:/# NCCL_DEBUG=INFO \
 
 root@mn-deployment-example-s1-7c5b4c57b7-wwz85:/# NCCL_DEBUG=INFO \
     NCCL_IB_GID_INDEX=0 \
-    NCCL_SOCKET_IFNAME=eth0 \
+    NCCL_SOCKET_IFNAME=eth0 \          # Pod-to-Pod communication for RCCL bootstrap/initialization and coordination
     NCCL_IB_QPS_PER_CONNECTION=8 \
     NCCL_P2P_CHUNKSIZE=16777216 \
     MASTER_ADDR=10.121.1.4 \
@@ -2594,6 +2590,33 @@ Allocated resources:
   rdma/fabric9       0           0
 Events:              <none>
 
+# kubectl get node rs-mn-mi350x8-pool-381iaf  -o json | jq '.status.capacity'
+{
+  "amd.com/gpu": "8",
+  "cpu": "192",
+  "ephemeral-storage": "2111508792Ki",
+  "hugepages-1Gi": "0",
+  "hugepages-2Mi": "0",
+  "memory": "2113762624Ki",
+  "pods": "110",
+  "rdma/fabric0": "100",
+  "rdma/fabric1": "100",
+  "rdma/fabric10": "0",
+  "rdma/fabric11": "0",
+  "rdma/fabric12": "0",
+  "rdma/fabric13": "0",
+  "rdma/fabric14": "0",
+  "rdma/fabric15": "0",
+  "rdma/fabric2": "100",
+  "rdma/fabric3": "100",
+  "rdma/fabric4": "100",
+  "rdma/fabric5": "100",
+  "rdma/fabric6": "100",
+  "rdma/fabric7": "100",
+  "rdma/fabric8": "0",
+  "rdma/fabric9": "0"
+}
+
 # kubectl get pods -A -o wide --field-selector spec.nodeName=rs-mn-mi350x8-pool-381iaf
 NAMESPACE     NAME                                              READY   STATUS    RESTARTS   AGE   IP            NODE                        NOMINATED NODE   READINESS GATES
 kube-system   amd-gpu-device-plugin-2l72n                       1/1     Running   0          14d   10.121.1.19   rs-mn-mi350x8-pool-381iaf   <none>           <none>
@@ -2607,6 +2630,8 @@ kube-system   rdma-shared-dp-ds-mfhxs                           1/1     Running 
 default       mn-deployment-example-s2-76886584f7-fcvtn         1/1     Running   0          45m   10.120.0.11   rs-mn-mi350x8-pool-381iaf   <none>           <none>
 
 # kubectl get nodes -l doks.digitalocean.com/gpu-brand=amd -o json | jq -r '.items[] | select(.status.capacity["rdma/fabric0"] == "0") | "\(.metadata.creationTimestamp)\t\(.metadata.name)"' | sort -r
+
+
 ```
 </details>
 
@@ -2623,7 +2648,7 @@ To perform RDMA/RoCE testing between the two Pods, first start the rank 0 proces
 
 root@rs-mn-mi350x8-pool-381iaf:/# NCCL_DEBUG=INFO \
     NCCL_IB_GID_INDEX=0 \
-    NCCL_SOCKET_IFNAME=eth1 \
+    NCCL_SOCKET_IFNAME=eth1 \          # the rank 0 Pod's host eth1 interface
     NCCL_IB_QPS_PER_CONNECTION=8 \
     NCCL_P2P_CHUNKSIZE=16777216 \
     MASTER_ADDR=10.120.0.11 \
@@ -2642,7 +2667,7 @@ root@rs-mn-mi350x8-pool-381iaf:/# NCCL_DEBUG=INFO \
 
 root@rs-mn-mi350x8-pool-381iaq:/# NCCL_DEBUG=INFO \
     NCCL_IB_GID_INDEX=0 \
-    NCCL_SOCKET_IFNAME=eth1 \ 
+    NCCL_SOCKET_IFNAME=eth1 \          # VPC Node-to-Node communication for RCCL bootstrap/initialization and coordination
     NCCL_IB_QPS_PER_CONNECTION=8 \
     NCCL_P2P_CHUNKSIZE=16777216 \
     MASTER_ADDR=10.120.0.11 \
@@ -2665,6 +2690,15 @@ It is important to distinguish between the logical RDMA device and the underlyin
 To run the same test on MI325x8 nodes, the values of NCCL_IB_GID_INDEX and NCCL_IB_HCA must be adjusted because MI325x8 nodes use a different NIC type than MI350x8 nodes. Additionally, MASTER_ADDR must be the IP address of the rank 0 Pod's host eth1 interface.
 
 Check [amd-mn-doks/mn-deployment-example-s2-76886584f7-fcvtn.txt](amd-mn-doks/mn-deployment-example-s2-76886584f7-fcvtn.txt) and [amd-mn-doks/mn-deployment-example-s2-76886584f7-lzrjn.txt](amd-mn-doks/mn-deployment-example-s2-76886584f7-lzrjn.txt) for the corresponding output logs. 
+
+
+## Documentation and Resources
+
+- [How to Configure Networking for Multi-Node DOKS GPU Workers](https://docs.digitalocean.com/products/kubernetes/how-to/configure-multinode-gpus/)
+
+- [How to setup Multi-Node GPU Droplets](https://github.com/rxsalad/multi-node-solutions/blob/main/mi350x8-mn-environment.MD)
+
+- [How to run PyTorch Testing on Multi-Node GPU Droplets](https://github.com/rxsalad/multi-node-solutions/blob/main/mi350x8-mn-pytorch-testing.MD)
 
 
 
