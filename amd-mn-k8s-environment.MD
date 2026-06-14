@@ -1842,7 +1842,6 @@ srwxr-xr-x 1 root root    0 May 31 18:59 kubelet.sock
 ```
 
 </details>
-</br>
 
 <details>
 <summary>K8S Node</summary>
@@ -2247,7 +2246,7 @@ Run the following commands to inspect the Pod mn-deployment-example-s2-76886584f
 ``` bash
 # kubectl exec -it mn-deployment-example-s2-76886584f7-fcvtn -- /bin/bash
 
-# The Pod inherits the node’s hostname 
+# The Pod shares the host network namespace and inherits its hostname.
 root@rs-mn-mi350x8-pool-381iaf:/# ip -br a
 lo               UNKNOWN        127.0.0.1/8 ::1/128 
 eth0             UP             159.89.134.60/20 fe80::cc9b:13ff:fe26:6327/64 
@@ -2268,7 +2267,6 @@ lxc_health@if16  UP             fe80::64d0:79ff:fead:505c/64
 lxc0210366d1bbd@if18 UP             fe80::fc01:5aff:fe70:93b3/64
 ```
 </details>
-</br>
 
 <details>
 <summary>K8S Pod</summary>
