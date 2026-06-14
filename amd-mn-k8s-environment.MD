@@ -1308,7 +1308,6 @@ if __name__ == "__main__":
 ```
 
 </details>
-<br>
 
 ``` bash
 # kubectl create configmap mn-python-script --from-file=amd-mn-doks/p2p_bw_test.py
@@ -1450,7 +1449,6 @@ spec:
 ```
 
 </details>
-</br>
 
 ``` bash
 # kubectl apply -f amd-mn-doks/mn-deployment-example-s1.yaml
@@ -1550,7 +1548,6 @@ root@mn-deployment-example-s1-7c5b4c57b7-dgv64:/# ibv_devinfo -v | grep GID
 ```
 
 </details>
-</br>
 
 <details>
 <summary>K8S Pod</summary>
@@ -1782,8 +1779,6 @@ crw-rw-rw- 1 root root 231, 199 Jun 14 18:28 uverbs7
 ```
 
 </details>
-</br>
-
 
 Run the following commands to verify network and RDMA/RoCE configuration for the DOKS worker: rs-mn-mi350x8-pool-381iaf:
 
@@ -2043,7 +2038,6 @@ default       mn-deployment-example-s1-7c5b4c57b7-dgv64         1/1     Running 
 ```
 
 </details>
-</br>
 
 After fabric0–fabric7 are moved into the Pod network namespace by Multus CNI along with the host-device CNI, they are no longer visible in the host network namespace. The underlying RDMA devices (e.g., ionic_*) remain present on the host and continue to be exposed via rdma link. However, the corresponding netdev interfaces are now exclusively attached to the Pod namespace.
 
@@ -2408,10 +2402,8 @@ Events:
 ```
 
 </details>
-</br>
 
 Run the following commands to verify network and RDMA/RoCE configuration for the DOKS worker: rs-mn-mi350x8-pool-381iaf:
-
 
 <details>
 <summary>Host OS</summary>
@@ -2617,7 +2609,6 @@ default       mn-deployment-example-s2-76886584f7-fcvtn         1/1     Running 
 # kubectl get nodes -l doks.digitalocean.com/gpu-brand=amd -o json | jq -r '.items[] | select(.status.capacity["rdma/fabric0"] == "0") | "\(.metadata.creationTimestamp)\t\(.metadata.name)"' | sort -r
 ```
 </details>
-</br>
 
 In this setup, the eth0, eth1, and fabric0–fabric7 interfaces are shared between the Pod and the DOKS worker, meaning the Pod directly uses the host’s network stack for both Kubernetes and RDMA/RoCE applications.
 
