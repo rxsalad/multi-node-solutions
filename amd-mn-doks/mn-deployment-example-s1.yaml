@@ -103,7 +103,6 @@ spec:
               mountPath: /p2p_bw_test.py
               subPath: p2p_bw_test.py
 
-
           resources:
             limits:
               amd.com/gpu: "8"
