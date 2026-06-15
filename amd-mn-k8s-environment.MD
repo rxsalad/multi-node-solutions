@@ -1182,7 +1182,7 @@ kubectl describe network-attachment-definitions
 | kubelet                          | Triggers pod creation and CNI execution      | Starts networking workflow                  |
 | Multus CNI                       | Orchestrates multiple CNI plugins            | Delegates to primary and secondary networks |
 | - Cilium (primary CNI)             | Configures default pod network               | `eth0`                                      |
-| - host-device (roce-net-fabric0–7) | Attaches host RDMA NICs to the pod           | `fabric0–fabric7`                           |
+| - host-device </br>(roce-net-fabric0~7) | Attaches host RDMA NICs to the pod           | `fabric0–fabric7`                           |
 | RDMA Device Plugin               | Advertises RDMA resources and mounts devices | `/dev/infiniband/*` inside pod              |
 | GPU Device Plugin                | Exposes GPU devices to container             | `/dev/kfd`, `/dev/dri`                      |
 
