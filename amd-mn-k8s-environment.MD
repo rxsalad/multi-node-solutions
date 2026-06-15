@@ -2,7 +2,7 @@
 
 This guide provides an overview of how to set up a multi-node DOKS environment and run distributed PyTorch tests on AMD GPU nodes, including both MI325x8 and MI350x8 platforms.
 
-For non-DOKS environments, please refer to [this guide](https://github.com/rxsalad/multi-node-solutions/blob/main/mi350x8-mn-environment.MD) for additional details.
+For non-DOKS environments, please refer to [mi350x8-mn-environment.MD](https://github.com/rxsalad/multi-node-solutions/blob/main/mi350x8-mn-environment.MD) for additional details.
 
 ## GPU Network Introduction
 
@@ -1019,7 +1019,7 @@ RDMA/RoCE workloads running in Pods require access to both the RDMA subsystem an
 
 
 ``` bash
-kubectl apply -f https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/master/deployments/multus-daemonset-thick.yml
+# kubectl apply -f https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/master/deployments/multus-daemonset-thick.yml
 
 customresourcedefinition.apiextensions.k8s.io/network-attachment-definitions.k8s.cni.cncf.io created
 clusterrole.rbac.authorization.k8s.io/multus created
@@ -1028,6 +1028,18 @@ serviceaccount/multus created
 configmap/multus-daemon-config created
 daemonset.apps/kube-multus-ds created
 
+# kubectl get pods -A | grep multus
+kube-system    kube-multus-ds-5ptln                              1/1     Running   0          32h
+kube-system    kube-multus-ds-9h88k                              1/1     Running   0          32h
+kube-system    kube-multus-ds-pt9x6                              1/1     Running   0          32h
+```
+
+kube-multus-ds installs and configures Multus on every node, making it the primary CNI so that kubelet’s standard CNI request is routed through Multus.
+
+When kubelet creates a Pod, it calls the container runtime, which then invokes the CNI plugin to set up networking. Because Multus is configured as the primary CNI in /etc/cni/net.d/, this request is first handled by Multus instead of a single CNI plugin. Multus reads the Pod’s network annotations and delegates interface setup to the appropriate CNI plugins (e.g., Cilium for eth0 and host-device for RDMA interfaces). These plugins attach their respective interfaces into the Pod’s network namespace, after which Multus returns the combined network configuration back through the CNI runtime to kubelet.
+
+```
+# DOKS Worker
 # ls /etc/cni/net.d/
 00-multus.conf	
 05-cilium.conflist
@@ -1042,11 +1054,6 @@ daemonset.apps/kube-multus-ds created
   "type":"multus-shim"
 }
 ```
-
-kube-multus-ds enables Multus by installing and configuring it on every node so that kubelet’s normal CNI request is handled through Multus.
-
-When kubelet creates a Pod, it calls the CNI plugin via the container runtime. Because kube-multus-ds has configured Multus as the primary CNI in /etc/cni/net.d/, that call is first handled by Multus instead of a single CNI plugin. Multus then reads the Pod’s network annotations and delegates to the configured CNIs (e.g., Cilium for eth0, host-device for RDMA interfaces), attaches the additional interfaces into the Pod’s network namespace, and returns the combined result back to kubelet through the CNI runtime.
-
 ### Configuration
 
 Prepare the [amd-mn-doks/network-attachments.yaml](amd-mn-doks/network-attachments.yaml) configuration file to expose each host RDMA interface (fabric0–fabric7) as a dedicated, directly attached network interface inside Pods using Multus with the host-device CNI plugin.
