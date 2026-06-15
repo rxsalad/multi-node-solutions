@@ -574,7 +574,6 @@ Perform the following checks to verify the health and readiness of the DOKS clus
 
 ``` bash
 # kubectl get nodes -o wide
-
 NAME                        STATUS   ROLES    AGE     VERSION   INTERNAL-IP   EXTERNAL-IP     OS-IMAGE                       KERNEL-VERSION        CONTAINER-RUNTIME
 rs-mn-cpu-pool-381iam       Ready    <none>   12d   v1.34.1   10.120.0.6    167.71.156.33   Debian GNU/Linux 13 (trixie)   6.12.48+deb13-amd64   containerd://1.7.28
 rs-mn-mi350x8-pool-381iaf   Ready    <none>   12d   v1.34.1   10.120.0.11   159.89.134.60   Debian GNU/Linux 13 (trixie)   6.12.48+deb13-amd64   containerd://1.7.28

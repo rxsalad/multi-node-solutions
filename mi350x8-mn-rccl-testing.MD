@@ -1,6 +1,6 @@
 # Multi-Node RCCL Testing for MI350x8 GPU Droplets
 
-Follow [the guide](mi350x8-mn-environment.MD) to prepare the environment before proceeding.
+Follow [mi350x8-mn-environment.MD](mi350x8-mn-environment.MD) to prepare the environment before proceeding.
 
 This guide provides a basic introduction and step-by-step instructions for manually performing RCCL testing in a multi-node MI350x8 GPU droplet environment.
 
