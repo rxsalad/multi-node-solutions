@@ -2,7 +2,7 @@
 
 Follow [amd-mn-k8s-environment.MD](amd-mn-k8s-environment.MD) to prepare the environment before proceeding, and familiarize yourself with Multi-Node RCCL testing with GPU droplets with [mi350x8-mn-rccl-testing.MD](mi350x8-mn-rccl-testing.MD).
 
-This guide provides a basic introduction and step-by-step instructions for manually performing RCCL testing in a multi-node DOKS with AMD GPUs, including both MI325x8 and MI350x8 platforms.
+This guide provides a basic introduction and step-by-step instructions for manually performing RCCL testing in a multi-node DOKS with AMD GPU nodes, including both MI325x8 and MI350x8 platforms.
 
 ## Test Environment
 
