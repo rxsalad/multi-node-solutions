@@ -13,7 +13,8 @@ spec:
         spec:
           containers:
           - name: mpi-launcher
-            image: docker.io/richardxgf/amd:rccl-test-mi325 
+            # image: docker.io/richardxgf/amd:rccl-test-mi325 
+            image: docker.io/richardxgf/amd:rccl-test-simple
             command:
             - mpirun
             - --allow-run-as-root
@@ -43,9 +44,9 @@ spec:
             - -mca
             - btl
             - self,tcp
-            - -mca
-            - pml
-            - ^ucx
+            #- -mca
+            #- pml
+            #- ^ucx
             - /workspace/rccl-tests/build/all_reduce_perf
             - -b
             - "8"
@@ -82,7 +83,8 @@ spec:
             effect: "NoSchedule"
           initContainers:
           - name: setup-ssh
-            image: docker.io/richardxgf/amd:rccl-test-mi325 
+            # image: docker.io/richardxgf/amd:rccl-test-mi325 
+            image: docker.io/richardxgf/amd:rccl-test-simple
             command:
             - /bin/bash
             - -c
@@ -121,7 +123,8 @@ spec:
               mountPath: /ssh-setup
           containers:
           - name: mpi-worker
-            image: docker.io/richardxgf/amd:rccl-test-mi325 
+            # image: docker.io/richardxgf/amd:rccl-test-mi325 
+            image: docker.io/richardxgf/amd:rccl-test-simple
             command:
             - /bin/bash
             - -c
