@@ -51,26 +51,25 @@ In a Kubernetes environment, additional tooling such as the MPI Operator is comm
 
 ### Container Image
 
-Refer to [amd-mn-doks/Dockerfile.mi350](amd-mn-doks/Dockerfile.mi350) and [amd-mn-doks/Dockerfile.mi325](amd-mn-doks/Dockerfile.mi325) for the reference implementations of the container images. These images include the following components:
+Refer to [amd-mn-doks/Dockerfile.simple](amd-mn-doks/Dockerfile.simple) for a reference implementations of the container image, which includes the following components:
 
 | Component                       | Version                   | Purpose                                                   |
 | ------------------------------- | ------------------------- | --------------------------------------------------------- |
 | ROCm Base Image                 | 7.2.1                     | AMD GPU runtime and development environment               |
 | RCCL                            | 2.27.7 (via `rocm-7.2.1`) | AMD collective communication library                      |
 | RCCL-Tests                      | `therock-7.11`            | Benchmark suite for RCCL collectives                      |
-| Open MPI                        | 4.1.6                     | MPI implementation with UCX support                       |
+| Open MPI                        | 4.1.6                     | MPI implementation                                        |
 | CMake                           | 3.28.0                    | Build system                                              |
-| Pollara Userspace RDMA Provider | 1.117.1-a-63              | Required for AMD Pensando Pollara NICs on MI350x8 |
+| Pollara Userspace RDMA Provider | 1.117.1-a-63              | Required userspace RDMA provider for AMD Pensando Pollara NICs on MI350x8 |
+|  AMD GPU Targets | gfx950, gfx942             | RCCL and RCCL-Tests are compiled only for gfx950 (MI350x8) and gfx942 (MI325x8) |
+
 
 
 Build and push the container images:
 
 ``` bash
-docker image build -t docker.io/richardxgf/amd:rccl-test-mi350 -f Dockerfile.mi350 . 
-docker push docker.io/richardxgf/amd:rccl-test-mi350
-
-docker image build -t docker.io/richardxgf/amd:rccl-test-mi325 -f Dockerfile.mi325 . 
-docker push docker.io/richardxgf/amd:rccl-test-mi325
+docker image build -t docker.io/richardxgf/amd:rccl-test-simple -f Dockerfile.simple . 
+docker push docker.io/richardxgf/amd:rccl-test-simple
 ```
 
 ###  MPI Operator
