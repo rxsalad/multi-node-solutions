@@ -1,0 +1,99 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-server
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: vllm-server
+  template:
+    metadata:
+      labels:
+        app: vllm-server
+      annotations:
+
+    spec:
+      hostNetwork: true
+      hostIPC: true
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+      - key: amd.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: vllm-container
+        image: rocm/vllm:latest
+        
+        command: 
+        - bash
+        - -c
+        - |
+          set -ex
+          
+          echo "Installing RDMA dependencies..."
+          apt-get update
+          apt-get install -y libibverbs1 librdmacm1 infiniband-diags ibverbs-utils net-tools iproute2
+          
+          echo "Checking RDMA devices..."
+          ibv_devices || echo "No IB devices"
+                  
+          echo "🚀 Sleeping ..."
+          sleep infinity
+
+        env:
+
+        resources:
+          limits:
+            amd.com/gpu: 8
+
+          requests:
+            amd.com/gpu: 8
+
+
+        volumeMounts:
+        - name: shm
+          mountPath: /dev/shm
+        - name: dev-kfd
+          mountPath: /dev/kfd
+        - name: dev-dri
+          mountPath: /dev/dri
+        - name: dev-infiniband
+          mountPath: /dev/infiniband
+        - name: sys-class-infiniband
+          mountPath: /sys/class/infiniband
+          readOnly: true
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+            - IPC_LOCK
+            - SYS_PTRACE
+            - SYS_ADMIN
+          seccompProfile:
+            type: Unconfined
+
+      securityContext:
+        supplementalGroups:
+        - 44  
+
+      volumes:
+      - name: shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 64Gi
+      - name: dev-kfd
+        hostPath:
+          path: /dev/kfd
+      - name: dev-dri
+        hostPath:
+          path: /dev/dri
+      - name: dev-infiniband
+        hostPath:
+          path: /dev/infiniband
+      - name: sys-class-infiniband
+        hostPath:
+          path: /sys/class/infiniband
