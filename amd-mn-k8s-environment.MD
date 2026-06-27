@@ -379,7 +379,7 @@ ionic_0  ionic_1  ionic_2  ionic_3  ionic_4  ionic_5  ionic_6  ionic_7
     ionic_6             049081fffe49d280
     ionic_7             049081fffe491eb0
 
-# ibv_devinfo -v | grep GI
+# ibv_devinfo -v | grep GID
                         GID[  0]:               fe80::490:81ff:fe49:c440, RoCE v2
                         GID[  0]:               fe80::490:81ff:fe49:488, RoCE v2
                         GID[  0]:               fe80::490:81ff:fe49:18f8, RoCE v2
