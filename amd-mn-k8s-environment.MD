@@ -18,9 +18,7 @@ The GPU Fabric is rail-only at the moment and consists of 8 independent forwardi
 
 The 8 RDMA/RoCE NICs in DOKS workers are configured and managed as `fabric0–fabric7`, with an IPv6 addresses automatically assigned to each inferace.
 
-The `fabric0–fabric7` can be treated as standard Ethernet interfaces, supported by the kernel TCP/IP stack in DOKS workers (Debian 13). You can run HTTP or ping over their IP addresses, and traffic can be managed via iptables.
-
-When RDMA/RoCE applications run over the 8 NICs using RoCEv2 (UDP over IP), traffic is handled directly by the NICs, bypassing the kernel TCP/IP stack. As a result, the RX and TX packet counters for `fabric0–fabric7` do not increment, even though the traffic is transmitted successfully.
+The `fabric0–fabric7` can be treated as standard Ethernet interfaces, supported by the kernel TCP/IP stack in DOKS workers (Debian 13). You can run HTTP or ping over their IP addresses, and traffic can be managed via iptables. When RDMA/RoCE applications run over the 8 NICs using RoCEv2 (UDP over IP), traffic is handled directly by the NICs, bypassing the kernel TCP/IP stack.
 
 **Addtional Details:** RDMA/RoCE applications require access to both the RDMA subsystem and the associated Ethernet interfaces. First, applications must be able to access the RDMA character devices under `/dev/infiniband`. These devices provide the verbs interface used to create and manage RDMA resources such as queue pairs, memory regions, completion queues, and other RDMA objects.They also require access to the corresponding Ethernet interfaces, which provide the network context necessary for communication, including IP configuration, MTU settings, VLAN membership, and QoS parameters. Although data transfer occurs through the RDMA data path, the Ethernet interfaces remain essential for address resolution (for example, GID resolution), route selection, and endpoint discovery.
 
