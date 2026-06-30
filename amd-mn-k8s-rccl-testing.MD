@@ -109,7 +109,7 @@ The launcher pod then invokes mpirun, which uses this generated environment to s
 
 ### MPIJob Manifest
 
-Refer to [amd-mn-doks/rccl-test-2-nodes-mi350x8.yaml](amd-mn-doks/rccl-test-2-nodes-mi350x8.yaml) and [amd-mn-doks/rccl-test-2-nodes-mi325x8.yaml](amd-mn-doks/rccl-test-2-nodes-mi325x8.yaml) for reference MPIJob manifests. The primary differences between these manifests are the container images and the value of the NCCL_IB_GID_INDEX environment variable, both of which are specific to the underlying GPU platform and RDMA network configuration.
+Refer to [amd-mn-doks/rccl-test-2-nodes-mi350x8.yaml](amd-mn-doks/rccl-test-2-nodes-mi350x8.yaml) and [amd-mn-doks/rccl-test-2-nodes-mi325x8.yaml](amd-mn-doks/rccl-test-2-nodes-mi325x8.yaml) for reference MPIJob manifests. The primary differences between these manifests is the value of the NCCL_IB_GID_INDEX environment variable, both of which are specific to the underlying RDMA/RoCE NIC providers and their drivers.
 
 This MPIJob runs the RCCL `all_reduce_perf` benchmark across two worker nodes, each with 8 GPUs, for a total of 16 GPUs. The job is managed by the Kubeflow MPI Operator and validates distributed GPU communication over XGMI (intra-node) and RoCE RDMA (inter-node).
 
