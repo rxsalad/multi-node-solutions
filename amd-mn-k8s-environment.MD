@@ -16,11 +16,11 @@ The GPU Fabric is rail-only at the moment and consists of 8 independent forwardi
 
 <img src="amd-mn-doks/amd-mn-doks.png" alt="GPU Network" width="900" height="350"/>
 
-The 8 RDMA/RoCE NICs in DOKS workers are configured and managed as `fabric0–fabric7`, with an IPv6 addresses automatically assigned to each inferace.
+The 8 RDMA/RoCE NICs in DOKS workers are configured and managed as `fabric0–fabric7`, with a link-local IPv6 addresses automatically assigned to each inferace.
 
 The `fabric0–fabric7` can be treated as standard Ethernet interfaces, supported by the kernel TCP/IP stack in DOKS workers (Debian 13). You can run HTTP or ping over their IP addresses, and traffic can be managed via iptables. When RDMA/RoCE applications run over the 8 NICs using RoCEv2 (UDP over IP), traffic is handled directly by the NICs, bypassing the kernel TCP/IP stack.
 
-[Addtional Details:](understanding_RoCE.MD) RDMA/RoCE applications require access to both the RDMA subsystem and the associated Ethernet interfaces. First, applications must be able to access the RDMA character devices under `/dev/infiniband`. These devices provide the verbs interface used to create and manage RDMA resources such as queue pairs, memory regions, completion queues, and other RDMA objects.They also require access to the corresponding Ethernet interfaces, which provide the network context necessary for communication, including IP configuration, MTU settings, VLAN membership, and QoS parameters. Although data transfer occurs through the RDMA data path, the Ethernet interfaces remain essential for address resolution (for example, GID resolution), route selection, and endpoint discovery.
+[Addtional Details:](understanding_RoCE.MD) RDMA/RoCE applications require access to both **the RDMA subsystem** and **the associated Ethernet interfaces**. First, applications must be able to access the RDMA character devices under `/dev/infiniband`. These devices provide the verbs interface used to create and manage RDMA resources such as queue pairs, memory regions, completion queues, and other RDMA objects. They also require access to the corresponding Ethernet interfaces, which provide the network context necessary for communication, including IP configuration, MTU settings, VLAN membership, and QoS parameters. Although data transfer occurs through the RDMA data path, the Ethernet interfaces remain essential for address resolution (for example, GID resolution), route selection, and endpoint discovery.
 
 **Out-of-Band TCP/IP Channel (Control Plane)**
 
@@ -28,13 +28,17 @@ RDMA/RoCE applications still require an out-of-band TCP/IP channel for bootstrap
 
 **Scenario 1:** Pods with Isolated Pod Networking
 
-In typical DOKS deployments, Pods running on DOKS workers use their own `eth0` interface to communicate with other Pods, Services, Nodes and the Internet. This interface can also serve as the out-of-band TCP channel for RDMA/RoCE applications. In this model, when using Multus CNI together with the host-device CNI, the RDMA network devices (`fabric0–fabric7`) are moved from the host network namespace into the Pod network namepsace. Once transfered, these devices are no longer visible or accessible from the host network namespace and are used exclusively within the Pod.
+In typical DOKS deployments, Pods running on DOKS workers use their own `eth0` interface, created by the Cilium CNI, to communicate with other Pods, Services, Nodes and the Internet. This interface can also serve as the out-of-band TCP channel for RDMA/RoCE applications. In this deployment model, when using Multus CNI together with the host-device CNI, the RDMA network interfaces (`fabric0–fabric7`) are moved from the host network namespace into the Pod network namepsace. Once transferred, these interfaces are no longer visible or accessible from the host network namespace.
+
+This approach does not support sharing RDMA/RoCE NICs among multiple applications running on the same node. Because each RDMA network interface is exclusively assigned to a single Pod, other Pods cannot access it, even though they may still have access to the RDMA character devices under `/dev/infiniband`. Refer to [amd-mn-k8s-rdma-sharing.MD](amd-mn-k8s-rdma-sharing.MD) for an alternative RDMA sharing solution based on the ipvlan CNI, which is used to create virtual `fabric0–fabric7` interfaces inside the pods, while sharing the same MAC addresses from the corresponding parent `fabric0–fabric7` interfaces on the DOKS workers, allowing multiple pods to share access to the same network interfaces.
 
 **Addtional Details:** [DOKS uses Cilium CNI with VPC-native routing](https://docs.digitalocean.com/products/kubernetes/details/features/#vpc-native-networking), enabling Pod-to-Pod,Pod-to-Service, Pod-to-Node/External traffic to be forwarded directly through the Linux kernel networking stack without overlay encapsulation. Pod-to-Pod traffic is routed natively across the VPC and does not require NAT. [Cilium](https://docs.cilium.io/en/stable/) leverages [eBPF](https://ebpf.io/what-is-ebpf/) for routing, service load balancing, network policy enforcement, and NAT where necessary (for example, egress traffic), eliminating the need for kube-proxy and replacing traditional iptables-based service handling with an eBPF-based datapath, while the Cilium agent operates solely in the control plane and is not involved in packet forwarding.
 
 **Scenario 2:** Pods Sharing the Host Network
 
 For Pods configured with the host network namespace (where interfaces such as `eth0` ,`eth1` and `fabric0–fabric7` are shared), the `eth1` interface is used as the dedicated out-of-band TCP/IP channel.
+
+There is one clear issue with this approach: when multiple application replicas share the host network, port conflicts can occur if different instances—or even the host itself—attempt to bind to the same port.
 
 This setup is similar to a non-DOKS environment, where containers are launched with direct access to the network namepsace on the host. For additional details, please refer to [the link](https://github.com/rxsalad/multi-node-solutions/blob/main/mi350x8-mn-pytorch-testing.MD#how-to-access-rdmaroce-nics-within-containers).
 
@@ -1179,10 +1183,10 @@ kubectl describe network-attachment-definitions
 | -------------------------------- | -------------------------------------------- | ------------------------------------------- |
 | kubelet                          | Triggers pod creation and CNI execution      | Starts networking workflow                  |
 | Multus CNI                       | Orchestrates multiple CNI plugins            | Delegates to primary and secondary networks |
-| - Cilium (primary CNI)             | Configures default pod network               | `eth0`                                      |
-| - host-device </br>(roce-net-fabric0~7) | Attaches host RDMA NICs to the pod           | `fabric0–fabric7`                           |
-| RDMA Device Plugin               | Advertises RDMA resources and mounts devices | `/dev/infiniband/*` inside pod              |
-| GPU Device Plugin                | Exposes GPU devices to container             | `/dev/kfd`, `/dev/dri`                      |
+| - Cilium primary CNI             | Configures default pod network               | `eth0` inside pods                                      |
+| - host-device CNI                | Move NICs from host network namespace to the pod network namespace           | `fabric0–fabric7`  inside pods                          |
+| RDMA Device Plugin               | Advertises RDMA resources and mounts devices to pods | `/dev/infiniband` inside pods              |
+| GPU Device Plugin                | Exposes GPU devices to pods             | `/dev/kfd`, `/dev/dri`  inside pods                      |
 
 <img src="amd-mn-doks/summary.png" alt="GPU Network" width="1000" height="600"/>
 
@@ -1190,14 +1194,13 @@ A Kubernetes Pod running GPU and RDMA workloads relies on coordinated setup acro
 
 - kubelet initiates Pod creation and triggers CNI execution to set up networking.
 - Multus CNI acts as a meta-CNI, orchestrating multiple network attachments: it delegates the default Pod network to Cilium, which creates eth0, and uses host-device CNI to move host RDMA interfaces into the Pod network namespace, exposing fabric0–fabric7.
-- The RDMA Device Plugin exposes RDMA resources and mounts InfiniBand devices into the Pod (/dev/infiniband/*).
+- The RDMA Device Plugin exposes RDMA resources and mounts the character devices into the Pod (/dev/infiniband/*).
 - The GPU Device Plugin exposes GPU device access (/dev/kfd, /dev/dri) to enable compute workloads.
 
 Together, these components provide a unified Pod environment with:
 - Standard Kubernetes networking (eth0)
 - High-performance RDMA/RoCE fabric interfaces (fabric0–fabric7)
 - Direct GPU and RDMA device access for accelerated workloads
-
 
 
 ## Multi-Node Depolyment Example 
