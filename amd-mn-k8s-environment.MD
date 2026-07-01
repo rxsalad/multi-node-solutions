@@ -1179,14 +1179,14 @@ kubectl describe network-attachment-definitions
 
 ## Summary – Pod GPU, RDMA and Network Setup Flow
 
-| Component                        | Action                                       | Output                                      |
-| -------------------------------- | -------------------------------------------- | ------------------------------------------- |
-| kubelet                          | Triggers pod creation and CNI execution      | Starts networking workflow                  |
-| Multus CNI                       | Orchestrates multiple CNI plugins            | Delegates to primary and secondary networks |
-| - Cilium primary CNI             | Configures default pod network               | `eth0` inside pods                                      |
-| - host-device CNI                | Move NICs from host network namespace to the pod network namespace           | `fabric0–fabric7`  inside pods                          |
-| RDMA Device Plugin               | Advertises RDMA resources and mounts devices to pods | `/dev/infiniband` inside pods              |
-| GPU Device Plugin                | Exposes GPU devices to pods             | `/dev/kfd`, `/dev/dri`  inside pods                      |
+| Component                         | Action                                                                                               | Output                                                |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| **kubelet**                       | Creates the pod and invokes the CNI plugins                                                          | Starts the pod networking workflow                    |
+| **Multus CNI**                    | Orchestrates multiple CNI plugins                                                                    | Attaches the primary and secondary network interfaces |
+| **↳ Cilium (primary CNI)**        | Configures the default Kubernetes pod network                                                        | `eth0` inside the pod                                 |
+| **↳ host-device (secondary CNI)** | Moves RDMA-capable network interfaces from the host network namespace into the pod network namespace | `fabric0`–`fabric7` inside the pod                    |
+| **RDMA Device Plugin**            | Advertises RDMA resources and mounts RDMA device files                                               | `/dev/infiniband` inside the pod                      |
+| **GPU Device Plugin**             | Advertises GPU resources and mounts GPU device files                                                 | `/dev/kfd` and `/dev/dri` inside the pod              |
 
 <img src="amd-mn-doks/summary.png" alt="GPU Network" width="1000" height="600"/>
 
