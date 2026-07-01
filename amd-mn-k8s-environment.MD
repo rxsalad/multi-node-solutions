@@ -1203,6 +1203,16 @@ Together, these components provide a unified Pod environment with:
 - Direct GPU and RDMA device access for accelerated workloads
 
 
+## Summary – Pod GPU, RDMA and Network Setup Flow (Sharing Host Network - Deprecated)
+
+| Component                         | Action                                                                                               | Output                                                |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| **kubelet**                       | Creates the pod and invokes the CNI plugins                                                          | Starts the pod networking workflow                    |
+| **Sharing Host Network**          | Allow pods to share host network namespace                                                           | `eth0`, `eth1` and `fabric0–fabric7` inside the pod  |
+| **RDMA Device Plugin**            | Advertises RDMA resources and mounts RDMA device files                                               | `/dev/infiniband` inside the pod                      |
+| **GPU Device Plugin**             | Advertises GPU resources and mounts GPU device files                                                 | `/dev/kfd` and `/dev/dri` inside the pod              |
+
+
 ## Multi-Node Depolyment Example 
 
 
