@@ -1,0 +1,135 @@
+Name:         rdma-devices
+Namespace:    kube-system
+Labels:       c3.doks.digitalocean.com/component=rdma-shared-dev-plugin
+              c3.doks.digitalocean.com/plane=data
+              doks.digitalocean.com/managed=true
+Annotations:  <none>
+
+Data
+====
+config.json:
+----
+{
+  "periodicUpdateInterval": 15,
+  "configList": [
+    {
+      "resourceName": "fabric0",
+      "rdmaHcaMax": 100,
+      "selectors": {
+        "ifNames": ["fabric0"]
+      }
+    },
+    {
+      "resourceName": "fabric1",
+      "rdmaHcaMax": 100,
+      "selectors": {
+        "ifNames": ["fabric1"]
+      }
+    },
+    {
+      "resourceName": "fabric2",
+      "rdmaHcaMax": 100,
+      "selectors": {
+        "ifNames": ["fabric2"]
+      }
+    },
+    {
+      "resourceName": "fabric3",
+      "rdmaHcaMax": 100,
+      "selectors": {
+        "ifNames": ["fabric3"]
+      }
+    },
+    {
+      "resourceName": "fabric4",
+      "rdmaHcaMax": 100,
+      "selectors": {
+        "ifNames": ["fabric4"]
+      }
+    },
+    {
+      "resourceName": "fabric5",
+      "rdmaHcaMax": 100,
+      "selectors": {
+        "ifNames": ["fabric5"]
+      }
+    },
+    {
+      "resourceName": "fabric6",
+      "rdmaHcaMax": 100,
+      "selectors": {
+        "ifNames": ["fabric6"]
+      }
+    },
+    {
+      "resourceName": "fabric7",
+      "rdmaHcaMax": 100,
+      "selectors": {
+        "ifNames": ["fabric7"]
+      }
+    },
+    {
+      "resourceName": "fabric8",
+      "rdmaHcaMax": 100,
+      "selectors": {
+        "ifNames": ["fabric8"]
+      }
+    },
+    {
+      "resourceName": "fabric9",
+      "rdmaHcaMax": 100,
+      "selectors": {
+        "ifNames": ["fabric9"]
+      }
+    },
+    {
+      "resourceName": "fabric10",
+      "rdmaHcaMax": 100,
+      "selectors": {
+        "ifNames": ["fabric10"]
+      }
+    },
+    {
+      "resourceName": "fabric11",
+      "rdmaHcaMax": 100,
+      "selectors": {
+        "ifNames": ["fabric11"]
+      }
+    },
+    {
+      "resourceName": "fabric12",
+      "rdmaHcaMax": 100,
+      "selectors": {
+        "ifNames": ["fabric12"]
+      }
+    },
+    {
+      "resourceName": "fabric13",
+      "rdmaHcaMax": 100,
+      "selectors": {
+        "ifNames": ["fabric13"]
+      }
+    },
+    {
+      "resourceName": "fabric14",
+      "rdmaHcaMax": 100,
+      "selectors": {
+        "ifNames": ["fabric14"]
+      }
+    },
+    {
+      "resourceName": "fabric15",
+      "rdmaHcaMax": 100,
+      "selectors": {
+        "ifNames": ["fabric15"]
+      }
+    }
+  ]
+}
+
+
+
+BinaryData
+====
+
+Events:  <none>

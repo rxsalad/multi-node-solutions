@@ -1,0 +1,49 @@
+Name:           rdma-shared-dp-ds
+Namespace:      kube-system
+Selector:       name=rdma-shared-dp-ds
+Node-Selector:  doks.digitalocean.com/is-gpu-fabric-connected=true,kubernetes.io/os=linux
+Labels:         c3.doks.digitalocean.com/component=rdma-shared-dev-plugin
+                c3.doks.digitalocean.com/plane=data
+                doks.digitalocean.com/managed=true
+Annotations:    deprecated.daemonset.template.generation: 1
+Desired Number of Nodes Scheduled: 2
+Current Number of Nodes Scheduled: 2
+Number of Nodes Scheduled with Up-to-date Pods: 2
+Number of Nodes Scheduled with Available Pods: 2
+Number of Nodes Misscheduled: 0
+Pods Status:  2 Running / 0 Waiting / 0 Succeeded / 0 Failed
+Pod Template:
+  Labels:  name=rdma-shared-dp-ds
+  Containers:
+   k8s-rdma-shared-dp-ds:
+    Image:        ghcr.io/digitalocean-packages/k8s-rdma-shared-dev-plugin:v1.5.3
+    Port:         <none>
+    Host Port:    <none>
+    Environment:  <none>
+    Mounts:
+      /dev/ from devs (rw)
+      /k8s-rdma-shared-dev-plugin from config (rw)
+      /var/lib/kubelet/device-plugins from device-plugin (rw)
+      /var/lib/kubelet/plugins_registry from plugins-registry (rw)
+  Volumes:
+   device-plugin:
+    Type:          HostPath (bare host directory volume)
+    Path:          /var/lib/kubelet/device-plugins
+    HostPathType:  
+   plugins-registry:
+    Type:          HostPath (bare host directory volume)
+    Path:          /var/lib/kubelet/plugins_registry
+    HostPathType:  
+   config:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      rdma-devices
+    Optional:  false
+   devs:
+    Type:               HostPath (bare host directory volume)
+    Path:               /dev/
+    HostPathType:       
+  Priority Class Name:  system-node-critical
+  Node-Selectors:       doks.digitalocean.com/is-gpu-fabric-connected=true
+                        kubernetes.io/os=linux
+  Tolerations:          op=Exists
+Events:                 <none>
