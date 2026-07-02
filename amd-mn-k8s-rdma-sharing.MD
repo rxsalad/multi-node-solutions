@@ -8,7 +8,7 @@ For distributed training or inference workloads where each rank uses all eight G
 
 However, for workloads where each rank uses only one, two, or four GPUs, multiple ranks may be colocated on the same node and need to share the available RDMA/RoCE resources.
 
-For example, in a prefill–decode disaggregated inference deployment with one prefill instance and three decode instances (each running a rank across four GPUs and four RDMA/RoCE NICs), the prefill instance transfers the computed KV cache to a selected decode instance for each request. This communication uses XGMI/NVLink for intra-node communication and RDMA/RoCE for inter-node communication, requiring full connectivity between the prefill instance and all decode instances.
+For example, in a prefill–decode disaggregated inference deployment with one prefill instance and three decode instances (each running a rank across four GPUs and four RDMA/RoCE NICs), the prefill instance transfers the computed KV cache to a selected decode instance for each request. This data movement uses XGMI/NVLink for intra-node communication and RDMA/RoCE for inter-node communication, requiring full connectivity between the prefill instance and all decode instances.
 
 Without RDMA sharing, deploying two ranks per node—each with exclusive access to four RDMA/RoCE NICs—breaks this communication model. Because the GPU fabric follows a rail-only architecture with eight independent forwarding planes, there is no RDMA/RoCE connectivity between ranks assigned to different NIC groups across nodes. For example, Rank 0 (Prefill) and Rank 3 (Decode) cannot communicate over RDMA/RoCE, and neither can Rank 1 and Rank 2 (although communication between the latter pair is not required in this use case).
 
@@ -991,7 +991,9 @@ root@mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj:/# python3 rdma_mapping.py
 
 Multiple distributed applications can concurrently share the same RDMA devices.
 
-For example, Application 1 (Pod 21 → Pod 11) and Application 2 (Pod 21 → Pod 12) may belong to different RCCL communication groups distinguished by their master ports, yet both transmit traffic through the same mlx5_0 interface. Similarly, Application 1 (Pod 21 → Pod 11) and Application 3 (Pod 22 → Pod 12) may belong to different RCCL groups distinguished by their master IP addresses, while still sharing the same underlying mlx5_0 device.
+For example, Application 1 (Pod 21 → Pod 11) and Application 2 (Pod 21 → Pod 12) may belong to different RCCL communication groups distinguished by their master ports (12356 and 12357), yet both transmit traffic through the same mlx5_0 interface. 
+
+Similarly, Application 1 (Pod 21 → Pod 11) and Application 3 (Pod 22 → Pod 12) may belong to different RCCL groups distinguished by their master IP addresses (10.119.1.4 and 10.119.1.31), while still sharing the same underlying mlx5_0 device.
 
 In both cases, logical separation of RCCL communication groups—whether by master port or master IP—does not imply physical NIC isolation. The communication is multiplexed over the same shared RDMA device.
 
