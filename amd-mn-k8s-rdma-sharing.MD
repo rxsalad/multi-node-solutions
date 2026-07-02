@@ -8,9 +8,9 @@ For distributed training or inference workloads where each rank uses all eight G
 
 However, for workloads where each rank uses only one, two, or four GPUs, multiple ranks may be colocated on the same node and need to share the available RDMA/RoCE resources.
 
-For example, in a prefill–decode disaggregated inference deployment with one prefill instance and three decode instances (each running a rank across four GPUs and four RDMA/RoCE NICs), the prefill instance transfers the computed KV cache to a selected decode instance for each request. This data movement uses XGMI/NVLink for intra-node communication and RDMA/RoCE for inter-node communication, requiring full connectivity between the prefill instance and all decode instances.
+For example, in a prefill–decode disaggregated inference deployment with one prefill instance and three decode instances (each running a rank across four GPUs and four RDMA/RoCE NICs), the prefill instance transfers the computed KV cache to a selected decode instance for each request. This data movement between ranks uses XGMI/NVLink for intra-node communication and RDMA/RoCE for inter-node communication, requiring full connectivity between the prefill instance and all decode instances.
 
-Without RDMA sharing, deploying two ranks per node—each with exclusive access to four RDMA/RoCE NICs—breaks this communication model. Because the GPU fabric follows a rail-only architecture with eight independent forwarding planes, there is no RDMA/RoCE connectivity between ranks assigned to different NIC groups across nodes. For example, Rank 0 (Prefill) and Rank 3 (Decode) cannot communicate over RDMA/RoCE, and neither can Rank 1 and Rank 2 (although communication between the latter pair is not required in this use case).
+Without RDMA sharing, deploying two ranks per node—each with exclusive access to four RDMA/RoCE NICs—breaks this communication model. Because the GPU fabric follows [a rail-only architecture with eight independent forwarding planes](amd-mn-k8s-environment.MD#gpu-network-introduction), there is no RDMA/RoCE connectivity between ranks assigned to different NIC groups across nodes. For example, Rank 0 (Prefill) and Rank 3 (Decode) cannot communicate over RDMA/RoCE, and neither can Rank 1 and Rank 2 (although communication between the latter pair is not required in this use case).
 
 <img src="rdma-sharing/sharing1.png" alt="GPU Network" width="900" height="250"/>
 
@@ -163,6 +163,8 @@ total 248492
 
 ### Step 4 - NAD
 
+[NetworkAttachmentDefinitions](https://github.com/k8snetworkplumbingwg/multus-cni/blob/master/docs/how-to-use.md#create-network-attachment-definition) (NADs) define the configuration for secondary networks but do not create or attach network interfaces themselves. Instead, pods reference NADs through annotations, and Multus CNI uses the referenced definitions to create and attach the corresponding interfaces during pod creation. A NAD only needs to be defined once and can reside in any namespace, provided it is accessible to Multus when the pod is created.
+
 Prepare and deploy [rdma-sharing/ipvlan-network-attachments.yaml](rdma-sharing/ipvlan-network-attachments.yaml) configuration file to create virtual fabricX interfaces for pods while using Multus CNI with the ipvlan CNI plugin.
 
 <details>
@@ -306,8 +308,6 @@ spec:
 </details>
 <br>
 
-[NetworkAttachmentDefinitions](https://github.com/k8snetworkplumbingwg/multus-cni/blob/master/docs/how-to-use.md#create-network-attachment-definition) (NADs) define the configuration for secondary networks but do not create or attach network interfaces themselves. Instead, pods reference NADs through annotations, and Multus CNI uses the referenced definitions to create and attach the corresponding interfaces during pod creation. A NAD only needs to be defined once and can reside in any namespace, provided it is accessible to Multus when the pod is created.
-
 ``` bash
 # kubectl apply  -f rdma-sharing/ipvlan-network-attachments.yaml  
 
@@ -339,7 +339,11 @@ kubectl delete -f rdma-sharing/ipvlan-network-attachments.yaml
 
 ## Example: RDMA Resource Sharing Across Applications
 
+### Application Deployment
+
 Build and deploy the Kubernetes manifest [rdma-sharing/mn-deployment-example-ipvlan-4pods-2nodes.yaml](rdma-sharing/mn-deployment-example-ipvlan-4pods-2nodes.yaml) to create four 4-GPU Pods across two DOKS workers with RDMA sharing enabled on all RDMA devices. Each pod requests 10 RDMA shares (out of the 100 configured by rdmaHcaMax) for each shared RDMA device and is assigned a dedicated virtual fabricX interface for it, allowing it to configure its own IP address while sharing the underlying physical RDMA NICs.
+
+This deployment simulates multiple distributed applications concurrently sharing the same RDMA devices.
 
 <details>
 <summary>mn-deployment-example-ipvlan-4pods-2nodes.yaml</summary>
@@ -651,6 +655,8 @@ Events:              <none>
 </details>
 </br>
 
+### GID on the Host
+
 Initially, each RDMA device exposes two GID entries corresponding to the DOKS worker's fabricX interface: one for RoCE v1 and one for RoCE v2, both using the interface's IPv6 link-local address.
 
 After two pods are created, each with its own virtual fabricX interface for every RDMA device, eight additional GID entries are appended to the shared GID table. Each pod contributes four GID entries:
@@ -771,6 +777,8 @@ root@rs-mn-mi325x8-pool-3c35jt:~# python3 rdma_mapping.py
 
 </details>
 </br>
+
+### Pod IP Assignment, Routing and GID
 
 With the Whereabouts IPAM plugin, each fabricX interface belongs to a deterministic subnet, but the specific IP address assigned (for example, .1, .2, or .3) is dynamically allocated when a Pod is created. As a result, IP addresses are not guaranteed to remain consistent across Pods or DOKS workers.
 
@@ -989,6 +997,8 @@ root@mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj:/# python3 rdma_mapping.py
 </details>
 </br>
 
+### Concurrent RDMA Access Validation
+
 Multiple distributed applications can concurrently share the same RDMA devices.
 
 For example, Application 1 (Pod 21 → Pod 11) and Application 2 (Pod 21 → Pod 12) may belong to different RCCL communication groups distinguished by their master ports (12356 and 12357), yet both transmit traffic through the same mlx5_0 interface. 
@@ -1112,6 +1122,8 @@ root@mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj:/# NCCL_DEBUG=INFO \
 
 </details>
 </br>
+
+## Deployment Recommendations
 
 Sharing RDMA devices across multiple distributed applications improves overall RDMA resource utilization and enables more flexible workload placement. However, dedicated RDMA resources remain the preferred configuration for mission-critical workloads because they provide predictable performance, stronger performance isolation, and more consistent latency.
 
