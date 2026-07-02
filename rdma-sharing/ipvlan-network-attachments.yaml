@@ -1,0 +1,135 @@
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric0
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric0",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.100.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric1
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric1",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.101.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric2
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric2",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.102.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric3
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric3",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.103.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric4
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric4",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.104.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric5
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric5",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.105.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric6
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric6",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.106.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric7
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric7",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.107.0/24"
+      }
+    }'
+---
