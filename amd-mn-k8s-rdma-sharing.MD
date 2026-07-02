@@ -1123,6 +1123,8 @@ root@mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj:/# NCCL_DEBUG=INFO \
 </details>
 </br>
 
+**Notes:** In Kubernetes, GPU IDs are local to the Pod. The GPUs allocated to a Pod are typically renumbered starting from GPU0, so GPU0 represents the first GPU visible to the Pod rather than the physical GPU 0 on the host. When the Pod is created, the GPU device plugin allocates a subset of the host's physical GPUs, and the container runtime exposes only those devices to the Pod. Although the GPUs are renumbered within the Pod, each retains immutable hardware identifiers, such as its PCI Bus ID and UUID, which are preserved across both the host and the Pod. These identifiers provide a one-to-one mapping between Pod-local GPU IDs and the corresponding physical GPUs on the host.
+
 ## Deployment Recommendations
 
 Sharing RDMA devices across multiple distributed applications improves overall RDMA resource utilization and enables more flexible workload placement. However, dedicated RDMA resources remain the preferred configuration for mission-critical workloads because they provide predictable performance, stronger performance isolation, and more consistent latency.
