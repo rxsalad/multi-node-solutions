@@ -1002,7 +1002,7 @@ kubectl -n kube-system get pods -o wide | grep rdma-shared-dp-ds
 kubectl -n kube-system logs -f rdma-shared-dp-ds-6pzt6
 ```
 
-## Multus CNI 
+## Multus CNI and host-device CNI
 
 RDMA/RoCE workloads running in Pods require access to both the RDMA subsystem and underlying Ethernet network interfaces.
 
@@ -1010,7 +1010,9 @@ RDMA/RoCE workloads running in Pods require access to both the RDMA subsystem an
 - It delegates the default network attachment to Cilium, which creates the primary eth0 interface in the Pod.
 - It then invokes additional CNI plugins (e.g., [host-device](https://www.cni.dev/plugins/current/main/host-device/)) to attach secondary interfaces, such as RDMA devices, moving fabric0–fabric7 from the DOKS worker into the Pod’s network namespace.
 
-### Installtion
+### Installation
+
+The host-device CNI plugin is preinstalled in DOKS workers.
 
 [Install the Multus CNI plugin](https://docs.digitalocean.com/products/kubernetes/how-to/configure-multinode-gpus/#required-plugins):
 
@@ -1058,7 +1060,9 @@ When kubelet creates a Pod, it calls the container runtime, which then invokes t
 ```
 ### Configuration
 
-Prepare the [amd-mn-doks/network-attachments.yaml](amd-mn-doks/network-attachments.yaml) configuration file to expose each host RDMA interface (fabric0–fabric7) as a dedicated, directly attached network interface inside Pods using Multus with the host-device CNI plugin.
+[NetworkAttachmentDefinitions](https://github.com/k8snetworkplumbingwg/multus-cni/blob/master/docs/how-to-use.md#create-network-attachment-definition) (NADs) define network configuration and mapping, but do not perform the actual interface attachment themselves. Instead, Pods reference these NADs via annotations, and Multus uses them to map host interfaces to container interfaces (host interface → NAD → Pod interface). NADs can be created in any namespace, as long as they are visible to Multus at Pod creation time, and each NAD only needs to be defined once.
+
+Prepare and deploy the [amd-mn-doks/network-attachments.yaml](amd-mn-doks/network-attachments.yaml) configuration file to expose each host RDMA interface (fabric0–fabric7) as a dedicated, directly attached network interface inside Pods using Multus with the host-device CNI plugin.
 
 <details>
 <summary>network-attachments.yaml</summary>
@@ -1157,9 +1161,6 @@ spec:
 
 </details>
 <br>
-
-[NetworkAttachmentDefinitions](https://github.com/k8snetworkplumbingwg/multus-cni/blob/master/docs/how-to-use.md#create-network-attachment-definition) (NADs) define network configuration and mapping, but do not perform the actual interface attachment themselves. Instead, Pods reference these NADs via annotations, and Multus uses them to map host interfaces to container interfaces (host interface → NAD → Pod interface). NADs can be created in any namespace, as long as they are visible to Multus at Pod creation time, and each NAD only needs to be defined once.
-
 
 ``` bash
 # kubectl apply -f amd-mn-doks/network-attachments.yaml
