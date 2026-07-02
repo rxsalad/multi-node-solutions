@@ -77,7 +77,9 @@ fabric7          UP             fe80::90e3:17ff:fe97:8d90/64
 </details>
 </br>
 
-The DOKS-managed RDMA device plugin (rdma-shared-dp-ds) already supports shared access to RDMA resources. Kubernetes resource limits can control how many pods can share a specific RDMA device (for example, mlx5_0 or ionic_0). Each RDMA device is configured with a **rdmaHcaMax** value (default: 100), and each pod requests a portion of this capacity.
+The DOKS-managed RDMA device plugin (rdma-shared-dp-ds) supports sharing RDMA resources across multiple pods. Kubernetes resource requests and limits determine how many pods can share a specific RDMA device (for example, mlx5_0 or ionic_0). Each RDMA device is assigned [an rdmaHcaMax capacity](https://github.com/Mellanox/k8s-rdma-shared-dev-plugin#rdma-shared-device-plugin-configurations) (default: 100 on DOKS), and each pod requests a portion of that capacity.
+
+For example, if each pod requests 25, up to four pods can share the same RDMA device on a node. If exclusive access is required, a pod can request [the full capacity](rdma-sharing/rccl-test-2-nodes-mi350x8-ipvlan.yaml#L162) (100), which reserves the entire RDMA device and prevents any other pod from being scheduled to use it.
 
 ```
 kubectl -n kube-system describe configmap rdma-devices 
@@ -91,8 +93,9 @@ The Ethernet interfaces, such as fabric0 for mlx5_0, are also required for RDMA/
 
 To enable multiple pods to share access to the fabric0–fabric7 interfaces, [the ipvlan CNI](https://www.cni.dev/plugins/current/main/ipvlan/) can be used. It creates virtual fabricX interfaces inside each pod that are logically isolated but multiplexed over the same underlying physical fabricX NICs. These virtual interfaces inherit the parent device’s network characteristics while avoiding MAC address explosion by sharing the MAC address of the underlying physical interface.
 
+Each pod sees its own fabricX interface through ipvlan, providing isolated IP configuration and routing while the RDMA stack continues to operate on the shared physical NIC. Because [GID](https://networking-docs.nvidia.com/doca/archive/3-4-0/rdma-over-converged-ethernet#GID-Table-Population) (Global Identifier) entries are maintained at the physical NIC level and derived from the underlying network interfaces, all pods share the same RDMA devices and GID namespace. Each pod must therefore select the GID index corresponding to the IP assigned to its fabricX interface so that RDMA uses the correct network interface during connection setup. 
 
-Each pod sees its own fabricX interface through ipvlan, providing isolated IP configuration and routing while the RDMA stack continues to operate on the shared physical NIC. Because [GID](https://networking-docs.nvidia.com/doca/archive/3-4-0/rdma-over-converged-ethernet#GID-Table-Population) (Global Identifier) entries are maintained at the physical NIC level and derived from the underlying network interfaces, all pods share the same RDMA devices and GID namespace. Each pod must therefore select the GID index corresponding to the IP assigned to its fabricX interface so that RDMA uses the correct network interface during connection setup.
+**The GID index can be configured either manually or automatically by setting the environment variable NCCL_IB_GID_INDEX to a specific value or to -1.**
 
 IPvlan supports both L2 and L3 modes. In L2 mode, pods are assigned unique IPs but share the same Layer 2 Ethernet domain, forming a flat network where **same-subnet pod-to-pod traffic is delivered directly via ARP without routing**, making it simple and suitable for smaller clusters. In L3 mode, pods also have unique IPs, but traffic is explicitly routed via static routes or dynamic routing protocols such as BGP, providing better scalability and isolation for large-scale deployments.
 
