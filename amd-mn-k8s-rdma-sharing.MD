@@ -784,7 +784,7 @@ root@rs-mn-mi325x8-pool-3c35jt:~# python3 rdma_mapping.py
 
 With the Whereabouts IPAM plugin, each fabricX interface belongs to a deterministic subnet, but the specific IP address assigned (for example, .1, .2, or .3) is dynamically allocated when a Pod is created. As a result, IP addresses are not guaranteed to remain consistent across Pods or DOKS workers.
 
-Consequently, GID index assignments are also dynamic. Although all pods on a DOKS worker share the same RDMA device and GID table, each pod owns its own set of virtual fabricX interfaces and therefore has an independent RDMA addressing context. Moreover, because pods may initialize different subsets of RDMA devices, the GID indices associated with a given IP address can differ across pods and across RDMA devices. 
+GID index assignments are also dynamic. Although all pods on a DOKS worker share the same RDMA device and GID table, each pod owns its own set of virtual fabricX interfaces and therefore has an independent RDMA addressing context. Moreover, because pods may initialize different subsets of RDMA devices, the GID indices associated with a given IP address can differ across pods and across RDMA devices. 
 
 Instead of explicitly querying and specifying a GID index, setting NCCL_IB_GID_INDEX=-1 allows NCCL/RCCL to automatically select an appropriate available GID. This auto-selection capability is supported by NCCL/RCCL, and its reliability and compatibility across different NIC drivers have improved in newer releases. For DOKS clusters, NCCL_IB_GID_INDEX=-1 is generally the recommended default. A specific GID index should only be used for troubleshooting or in environments that require a fixed RDMA/RoCE configuration.
 
@@ -1005,13 +1005,13 @@ root@mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj:/# python3 rdma_mapping.py
 
 Multiple distributed applications can concurrently share the same RDMA devices.
 
-For example, Application 1 (Pod 21 → Pod 11) and Application 2 (Pod 21 → Pod 12) may belong to different RCCL communication groups distinguished by their master ports (12356 and 12357), yet both transmit traffic through the same mlx5_0 interface. 
+For example, Application 1 (Pod 21 → Pod 11) and Application 2 (Pod 21 → Pod 12) may belong to different RCCL communication groups distinguished by their master ports (12356 and 12357), yet both transmit traffic through the same mlx5_0 device. 
 
 Similarly, Application 1 (Pod 21 → Pod 11) and Application 3 (Pod 22 → Pod 12) may belong to different RCCL groups distinguished by their master IP addresses (10.119.1.4 and 10.119.1.31), while still sharing the same underlying mlx5_0 device.
 
 In both cases, logical separation of RCCL communication groups—whether by master port or master IP—does not imply physical NIC isolation. The communication is multiplexed over the same shared RDMA device.
 
-Here, specific GID indexes are explicitly assigned per run to emphasize differences across pods, but they can be replaced with -1 (the default value for NCCL_IB_GID_INDEX) to enable automatic selection.
+**Here, specific GID indexes are explicitly assigned per run to emphasize differences across pods, but they can be replaced with -1 (the default value for NCCL_IB_GID_INDEX) to enable automatic selection.**
 
 <details>
 <summary>MI325x8: RDMA Resource Sharing Across Applications</summary>
