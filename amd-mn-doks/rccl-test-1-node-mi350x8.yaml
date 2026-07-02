@@ -1,0 +1,197 @@
+apiVersion: kubeflow.org/v2beta1
+kind: MPIJob
+metadata:
+  name: mpi-multus-gfx950
+spec:
+  slotsPerWorker: 8
+  runPolicy:
+    cleanPodPolicy: None # Running
+  mpiReplicaSpecs:
+    Launcher:
+      replicas: 1
+      template:
+        spec:
+          containers:
+          - name: mpi-launcher
+            # image: docker.io/richardxgf/amd:rccl-test-mi350 
+            image: docker.io/richardxgf/amd:rccl-test-simple
+            command:
+            - mpirun
+            - --allow-run-as-root
+            - -np
+            - "8"
+            - -bind-to
+            - none
+            - -map-by
+            - slot
+            - -x
+            - NCCL_SOCKET_IFNAME=eth0
+            - -x
+            - NCCL_CROSS_NIC=0
+            - -x
+            - NCCL_PXN_DISABLE=0
+            - -x
+            - NCCL_NET_DISABLE_INTRA=1
+            - -x
+            - NCCL_IB_GID_INDEX=0
+            - -x
+            - NCCL_IB_TC=104
+            - -x
+            - PATH
+            - -mca
+            - plm_rsh_args
+            - "-p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+            - -mca
+            - btl
+            - self,tcp
+            # - -mca
+            # - pml
+            # - ^ucx
+            - /workspace/rccl-tests/build/all_reduce_perf
+            - -b
+            - "8"
+            - -e
+            - 16G
+            - -f
+            - "2"
+            - -g
+            - "1"
+            - -c
+            - "1"
+            - -n
+            - "100"
+    Worker:
+      replicas: 1
+      template:
+        metadata:
+          annotations:
+            k8s.v1.cni.cncf.io/networks: >-
+              roce-net-fabric0@fabric0,
+              roce-net-fabric1@fabric1,
+              roce-net-fabric2@fabric2,
+              roce-net-fabric3@fabric3,
+              roce-net-fabric4@fabric4,
+              roce-net-fabric5@fabric5,
+              roce-net-fabric6@fabric6,
+              roce-net-fabric7@fabric7
+        spec:
+          nodeSelector:
+            doks.digitalocean.com/gpu-model: mi350x
+          tolerations:
+          - key: "amd.com/gpu"
+            operator: "Exists"
+            effect: "NoSchedule"
+          initContainers:
+          - name: setup-ssh
+            # image: docker.io/richardxgf/amd:rccl-test-mi350 
+            image: docker.io/richardxgf/amd:rccl-test-simple
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -ex
+              
+              echo "Setting up SSH configuration..."
+              mkdir -p /ssh-setup/sshd
+              
+              echo "Generating SSH host keys..."
+              ssh-keygen -t rsa -f /ssh-setup/sshd/ssh_host_rsa_key -N '' 2>/dev/null
+              ssh-keygen -t ecdsa -f /ssh-setup/sshd/ssh_host_ecdsa_key -N '' 2>/dev/null
+              ssh-keygen -t ed25519 -f /ssh-setup/sshd/ssh_host_ed25519_key -N '' 2>/dev/null
+              
+              cat > /ssh-setup/sshd/sshd_config << 'SSHD_EOF'
+              Port 2222
+              HostKey /etc/ssh-runtime/ssh_host_rsa_key
+              HostKey /etc/ssh-runtime/ssh_host_ecdsa_key
+              HostKey /etc/ssh-runtime/ssh_host_ed25519_key
+              PermitRootLogin yes
+              PubkeyAuthentication yes
+              AuthorizedKeysFile /root/.ssh/authorized_keys /root/.ssh/id_rsa.pub
+              PasswordAuthentication no
+              ChallengeResponseAuthentication no
+              UsePAM no
+              PrintMotd no
+              PidFile /var/run/sshd.pid
+              StrictModes no
+              SSHD_EOF
+              
+              echo "SSH setup complete"
+              echo "Files in /ssh-setup/sshd:"
+              ls -la /ssh-setup/sshd/
+            volumeMounts:
+            - name: ssh-setup
+              mountPath: /ssh-setup
+          containers:
+          - name: mpi-worker
+            # image: docker.io/richardxgf/amd:rccl-test-mi350 
+            image: docker.io/richardxgf/amd:rccl-test-simple
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -ex
+              
+              echo "Starting worker container..."
+              mkdir -p /var/run/sshd /etc/ssh-runtime
+              
+              echo "Copying SSH host keys and config from init container..."
+              cp /ssh-setup/sshd/* /etc/ssh-runtime/
+              
+              echo "SSH runtime files:"
+              ls -la /etc/ssh-runtime/
+              
+              echo "Verifying operator-provided SSH keys at /root/.ssh..."
+              ls -la /root/.ssh/ || echo "Warning: /root/.ssh not found"
+              
+              echo "Starting sshd in foreground..."
+              exec /usr/sbin/sshd -D -e -f /etc/ssh-runtime/sshd_config
+            securityContext:
+              privileged: true
+              capabilities:
+                add:
+                - IPC_LOCK
+            volumeMounts:
+            - name: ssh-setup
+              mountPath: /ssh-setup
+            - name: dshm
+              mountPath: /dev/shm
+            resources:
+              limits:
+                amd.com/gpu: 8
+                rdma/fabric0: 1
+                rdma/fabric1: 1
+                rdma/fabric2: 1
+                rdma/fabric3: 1
+                rdma/fabric4: 1
+                rdma/fabric5: 1
+                rdma/fabric6: 1
+                rdma/fabric7: 1
+              requests:
+                amd.com/gpu: 8
+                rdma/fabric0: 1
+                rdma/fabric1: 1
+                rdma/fabric2: 1
+                rdma/fabric3: 1
+                rdma/fabric4: 1
+                rdma/fabric5: 1
+                rdma/fabric6: 1
+                rdma/fabric7: 1
+            readinessProbe:
+              tcpSocket:
+                port: 2222
+              initialDelaySeconds: 5
+              periodSeconds: 3
+              timeoutSeconds: 2
+            livenessProbe:
+              tcpSocket:
+                port: 2222
+              initialDelaySeconds: 15
+              periodSeconds: 10
+              timeoutSeconds: 2
+          volumes:
+          - name: ssh-setup
+            emptyDir: {}
+          - name: dshm
+            emptyDir:
+              medium: Memory
+              sizeLimit: 16Gi

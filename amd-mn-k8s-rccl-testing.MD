@@ -1,8 +1,8 @@
 # Multi-Node RCCL Testing for DOKS with AMD GPU Nodes
 
-Follow [amd-mn-k8s-environment.MD](amd-mn-k8s-environment.MD) to prepare the environment before proceeding, and familiarize yourself with Multi-Node RCCL testing with GPU droplets with [mi350x8-mn-rccl-testing.MD](mi350x8-mn-rccl-testing.MD).
+Follow [amd-mn-k8s-environment.MD](amd-mn-k8s-environment.MD) and [amd-mn-k8s-rdma-sharing.MD](amd-mn-k8s-rdma-sharing.MD) to prepare the environment before proceeding. The required networking components—including the Multus CNI and a secondary CNI (either [host-device CNI](amd-mn-k8s-environment.MD#summary--pod-gpu-rdma-and-network-setup-flow) or [ipvlan CNI](amd-mn-k8s-rdma-sharing.MD#summary--pod-gpu-rdma-and-network-setup-flow)), and the corresponding NetworkAttachmentDefinitions (NADs)—should already be installed and configured. Also, familiarize yourself with multi-node RCCL testing on GPU Droplets by reviewing [mi350x8-mn-rccl-testing.MD](mi350x8-mn-rccl-testing.MD).
 
-This guide provides a basic introduction and step-by-step instructions for manually performing RCCL testing in a multi-node DOKS with AMD GPU nodes, including both MI325x8 and MI350x8 platforms.
+This guide provides a step-by-step introduction to manually performing multi-node RCCL testing on DOKS clusters with AMD GPU nodes, covering both MI325x8 and MI350x8 platforms.
 
 ## Test Environment
 
@@ -109,9 +109,18 @@ The launcher pod then invokes mpirun, which uses this generated environment to s
 
 ### MPIJob Manifest
 
-Refer to [amd-mn-doks/rccl-test-2-nodes-mi350x8.yaml](amd-mn-doks/rccl-test-2-nodes-mi350x8.yaml) and [amd-mn-doks/rccl-test-2-nodes-mi325x8.yaml](amd-mn-doks/rccl-test-2-nodes-mi325x8.yaml) for reference MPIJob manifests. The primary differences between these manifests is the value of the NCCL_IB_GID_INDEX environment variable, both of which are specific to the underlying RDMA/RoCE NIC providers and their drivers.
+If your DOKS cluster is configured with **Multus CNI + host-device CNI**, refer to [amd-mn-doks/rccl-test-2-nodes-mi350x8.yaml](amd-mn-doks/rccl-test-2-nodes-mi350x8.yaml) and [amd-mn-doks/rccl-test-2-nodes-mi325x8.yaml](amd-mn-doks/rccl-test-2-nodes-mi325x8.yaml) for example MPIJob manifests.
 
-This MPIJob runs the RCCL `all_reduce_perf` benchmark across two worker nodes, each with 8 GPUs, for a total of 16 GPUs. The job is managed by the Kubeflow MPI Operator and validates distributed GPU communication over XGMI (intra-node) and RoCE RDMA (inter-node).
+if the cluster is configured with **Multus CNI + ipvlan CNI**, refer to [rdma-sharing/rccl-test-2-nodes-mi350x8-ipvlan.yaml](rdma-sharing/rccl-test-2-nodes-mi350x8-ipvlan.yaml) and [rdma-sharing/rccl-test-2-nodes-mi325x8-ipvlan.yaml](rdma-sharing/rccl-test-2-nodes-mi325x8-ipvlan.yaml) for the corresponding MPIJob manifests.
+
+The primary differences between these manifests is the value of the NCCL_IB_GID_INDEX environment variable, both of which are specific to the underlying RDMA/RoCE NIC providers and their drivers, as well as the selected network CNI.
+
+Instead of explicitly specifying a GID index, setting NCCL_IB_GID_INDEX=-1 allows NCCL/RCCL to automatically select an appropriate available GID. This auto-selection behavior is available in NCCL/RCCL, but its correctness and consistency are improved in newer versions.
+
+These MPIJobs runs the RCCL `all_reduce_perf` benchmark across two worker nodes (MI325x8 or MI350x8), each with 8 GPUs, for a total of 16 GPUs. The job is managed by the Kubeflow MPI Operator and validates distributed GPU communication over XGMI (intra-node) and RoCE RDMA (inter-node).
+
+Notes: In an MPIJob, **slotsPerWorker**, **worker replicas**, and **mpirun -np** must be aligned to ensure correct GPU mapping and full utilization. Since each node has 8 GPUs, each worker Pod exposes 8 slots, enabling a one-to-one mapping between MPI ranks and GPUs. Therefore, -np should equal worker replicas × 8, ensuring each rank is bound to a dedicated GPU across all Pods. This alignment provides a clean one-rank-per-GPU execution model for predictable RCCL performance, while misconfiguration can lead to underutilization or slot mismatch errors.
+
 
 **Key components:**
 
