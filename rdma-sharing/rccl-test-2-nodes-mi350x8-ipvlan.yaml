@@ -159,6 +159,7 @@ spec:
               mountPath: /dev/shm
             resources:
               limits:
+                # The RCCL test workload requires 8 GPUs and the exclusive access to all 8 RDMA fabrics on the node. 
                 amd.com/gpu: 8
                 rdma/fabric0: 100
                 rdma/fabric1: 100

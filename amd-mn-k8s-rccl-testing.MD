@@ -113,7 +113,7 @@ If your DOKS cluster is configured with **Multus CNI + host-device CNI**, refer 
 
 if the cluster is configured with **Multus CNI + ipvlan CNI**, refer to [rdma-sharing/rccl-test-2-nodes-mi350x8-ipvlan.yaml](rdma-sharing/rccl-test-2-nodes-mi350x8-ipvlan.yaml) and [rdma-sharing/rccl-test-2-nodes-mi325x8-ipvlan.yaml](rdma-sharing/rccl-test-2-nodes-mi325x8-ipvlan.yaml) for the corresponding MPIJob manifests.
 
-The primary differences between these manifests is the value of the NCCL_IB_GID_INDEX environment variable, both of which are specific to the underlying RDMA/RoCE NIC providers and their drivers, as well as the selected network CNI.
+The primary difference between these manifests is the **NCCL_IB_GID_INDEX** environment variable. Its correct value depends on the underlying RDMA/RoCE NIC hardware, driver behavior, and the network CNI configuration, and should therefore be validated before running the test.
 
 Instead of explicitly specifying a GID index, setting NCCL_IB_GID_INDEX=-1 allows NCCL/RCCL to automatically select an appropriate available GID. This auto-selection behavior is available in NCCL/RCCL, but its correctness and consistency are improved in newer versions.
 
