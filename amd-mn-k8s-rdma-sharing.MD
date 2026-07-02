@@ -999,7 +999,7 @@ In both cases, logical separation of RCCL communication groups—whether by mast
 <summary>MI325x8: RDMA Resource Sharing Across Applications</summary>
 
 |No| Pods                                                 | eth 0                           | GID indexes                             | DOKS worker |
-|-| ------------------------------------------------------| ------------------------------- | ----------------------------------------------------- |
+|-| ------------------------------------------------------| ------------------------------- | -----------------| ------------------------------------ |
 |1| Pod 11: mn-deployment-example-ipvlan-56f4fbcb4b-rlxkv | 10.119.0.229                    | 3/3/3/3/3/3/3/3 | Worker 1: rs-mn-mi325x8-pool-3c35jt |
 |2| Pod 12: mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj | 10.119.0.225                    | 7/7/7/7/7/7/7/7 | Worker 1: rs-mn-mi325x8-pool-3c35jt |
 |3| Pod 21: mn-deployment-example-ipvlan-56f4fbcb4b-lqzpv | 10.119.1.4                      | 3/3/3/3/3/3/3/3 | Worker 2: rs-mn-mi325x8-pool-3cmiju |
