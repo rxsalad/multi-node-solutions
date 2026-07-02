@@ -113,14 +113,13 @@ If your DOKS cluster is configured with **Multus CNI + host-device CNI**, refer 
 
 if the cluster is configured with **Multus CNI + ipvlan CNI**, refer to [rdma-sharing/rccl-test-2-nodes-mi350x8-ipvlan.yaml](rdma-sharing/rccl-test-2-nodes-mi350x8-ipvlan.yaml) and [rdma-sharing/rccl-test-2-nodes-mi325x8-ipvlan.yaml](rdma-sharing/rccl-test-2-nodes-mi325x8-ipvlan.yaml) for the corresponding MPIJob manifests.
 
-The primary difference between these manifests is the **NCCL_IB_GID_INDEX** environment variable. Its correct value depends on the underlying RDMA/RoCE NIC hardware, driver behavior, and the network CNI configuration, and should therefore be validated before running the test.
+The primary differences between these manifests are **the Multus CNI network attachment annotations** and **the value of the NCCL_IB_GID_INDEX environment variable**. The appropriate NCCL_IB_GID_INDEX value depends on the underlying RDMA/RoCE NIC hardware, driver implementation, and network CNI configuration.
 
-Instead of explicitly specifying a GID index, setting NCCL_IB_GID_INDEX=-1 allows NCCL/RCCL to automatically select an appropriate available GID. This auto-selection behavior is available in NCCL/RCCL, but its correctness and consistency are improved in newer versions.
+Instead of explicitly specifying a GID index, setting **NCCL_IB_GID_INDEX=-1** allows NCCL/RCCL to automatically select an appropriate available GID. This auto-selection capability is supported by NCCL/RCCL, and its reliability and compatibility across different NIC drivers have improved in newer releases. For DOKS clusters, NCCL_IB_GID_INDEX=-1 is generally the recommended default, while a fixed GID index should be used only for troubleshooting or when required by a specific RDMA/RoCE environment.
 
 These MPIJobs runs the RCCL `all_reduce_perf` benchmark across two worker nodes (MI325x8 or MI350x8), each with 8 GPUs, for a total of 16 GPUs. The job is managed by the Kubeflow MPI Operator and validates distributed GPU communication over XGMI (intra-node) and RoCE RDMA (inter-node).
 
 Notes: In an MPIJob, **slotsPerWorker**, **worker replicas**, and **mpirun -np** must be aligned to ensure correct GPU mapping and full utilization. Since each node has 8 GPUs, each worker Pod exposes 8 slots, enabling a one-to-one mapping between MPI ranks and GPUs. Therefore, -np should equal worker replicas × 8, ensuring each rank is bound to a dedicated GPU across all Pods. This alignment provides a clean one-rank-per-GPU execution model for predictable RCCL performance, while misconfiguration can lead to underutilization or slot mismatch errors.
-
 
 **Key components:**
 
