@@ -675,7 +675,6 @@ Because the DOKS worker and all pods share the same RDMA device and GID table, e
 
 The [rdma-sharing/rdma_mapping.py](rdma-sharing/rdma_mapping.py) script determines the appropriate GID index by matching the first IP address configured on each fabricX interface with the GID table reported by `ibv_devinfo -v`.
 
-
 <details>
 <summary>MI325x8: Host OS</summary>
 
@@ -785,7 +784,9 @@ root@rs-mn-mi325x8-pool-3c35jt:~# python3 rdma_mapping.py
 
 With the Whereabouts IPAM plugin, each fabricX interface belongs to a deterministic subnet, but the specific IP address assigned (for example, .1, .2, or .3) is dynamically allocated when a Pod is created. As a result, IP addresses are not guaranteed to remain consistent across Pods or DOKS workers.
 
-Consequently, GID index assignments are also dynamic. Although all pods on a DOKS worker share the same RDMA device and GID table, each pod owns its own set of virtual fabricX interfaces and therefore has an independent RDMA addressing context. Moreover, because pods may initialize different subsets of RDMA devices, the GID indices associated with a given IP address can differ across pods and across RDMA devices. **Applications should therefore discover GID indices at runtime rather than assuming fixed values.**
+Consequently, GID index assignments are also dynamic. Although all pods on a DOKS worker share the same RDMA device and GID table, each pod owns its own set of virtual fabricX interfaces and therefore has an independent RDMA addressing context. Moreover, because pods may initialize different subsets of RDMA devices, the GID indices associated with a given IP address can differ across pods and across RDMA devices. 
+
+Instead of explicitly querying and specifying a GID index, setting NCCL_IB_GID_INDEX=-1 allows NCCL/RCCL to automatically select an appropriate available GID. This auto-selection capability is supported by NCCL/RCCL, and its reliability and compatibility across different NIC drivers have improved in newer releases. For DOKS clusters, NCCL_IB_GID_INDEX=-1 is generally the recommended default. A specific GID index should only be used for troubleshooting or in environments that require a fixed RDMA/RoCE configuration.
 
 When IPvlan operates in L2 mode, each fabricX interface resides in the Layer 2 broadcast domain of its parent NIC. Address resolution is performed locally within the subnet, and multiple IP addresses may map to the same MAC address because all virtual interfaces share the underlying physical RDMA NIC. Consequently, traffic between Pods on the RDMA/RoCE fabric is forwarded directly at Layer 2, eliminating the need for explicit Layer 3 routing.
 
@@ -1010,10 +1011,12 @@ Similarly, Application 1 (Pod 21 → Pod 11) and Application 3 (Pod 22 → Pod 1
 
 In both cases, logical separation of RCCL communication groups—whether by master port or master IP—does not imply physical NIC isolation. The communication is multiplexed over the same shared RDMA device.
 
+Here, specific GID indexes are explicitly assigned per run to emphasize differences across pods, but they can be replaced with -1 (the default value for NCCL_IB_GID_INDEX) to enable automatic selection.
+
 <details>
 <summary>MI325x8: RDMA Resource Sharing Across Applications</summary>
 
-|No| Pods                                                 | eth 0                           | GID indexes                             | DOKS worker |
+|No| Pods                                                 | eth 0                           | GID indexes based on the 1st IP          | DOKS worker |
 |-| ------------------------------------------------------| ------------------------------- | -----------------| ------------------------------------ |
 |1| Pod 11: mn-deployment-example-ipvlan-56f4fbcb4b-rlxkv | 10.119.0.229                    | 3/3/3/3/3/3/3/3 | Worker 1: rs-mn-mi325x8-pool-3c35jt |
 |2| Pod 12: mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj | 10.119.0.225                    | 7/7/7/7/7/7/7/7 | Worker 1: rs-mn-mi325x8-pool-3c35jt |
@@ -1025,7 +1028,8 @@ In both cases, logical separation of RCCL communication groups—whether by mast
 ``` bash
 # Pod 21
 # kubectl exec -it mn-deployment-example-ipvlan-56f4fbcb4b-lqzpv  -- /bin/bash
-root@mn-deployment-example-ipvlan-56f4fbcb4b-lqzpv:/# NCCL_DEBUG=INFO \
+root@mn-deployment-example-ipvlan-56f4fbcb4b-lqzpv:/# 
+    NCCL_DEBUG=INFO \
     NCCL_IB_GID_INDEX=3 \
     NCCL_SOCKET_IFNAME=eth0 \
     NCCL_IB_QPS_PER_CONNECTION=8 \
@@ -1040,7 +1044,8 @@ root@mn-deployment-example-ipvlan-56f4fbcb4b-lqzpv:/# NCCL_DEBUG=INFO \
 
 # Pod 11
 # kubectl exec -it mn-deployment-example-ipvlan-56f4fbcb4b-rlxkv -- /bin/bash
-root@mn-deployment-example-ipvlan-56f4fbcb4b-rlxkv:/# NCCL_DEBUG=INFO \
+root@mn-deployment-example-ipvlan-56f4fbcb4b-rlxkv:/# 
+    NCCL_DEBUG=INFO \
     NCCL_IB_GID_INDEX=3 \
     NCCL_SOCKET_IFNAME=eth0 \
     NCCL_IB_QPS_PER_CONNECTION=8 \
@@ -1059,7 +1064,8 @@ root@mn-deployment-example-ipvlan-56f4fbcb4b-rlxkv:/# NCCL_DEBUG=INFO \
 ```bash
 # Pod 21
 # kubectl exec -it mn-deployment-example-ipvlan-56f4fbcb4b-lqzpv  -- /bin/bash
-root@mn-deployment-example-ipvlan-56f4fbcb4b-lqzpv:/# NCCL_DEBUG=INFO \
+root@mn-deployment-example-ipvlan-56f4fbcb4b-lqzpv:/# 
+    NCCL_DEBUG=INFO \
     NCCL_IB_GID_INDEX=3 \
     NCCL_SOCKET_IFNAME=eth0 \
     NCCL_IB_QPS_PER_CONNECTION=8 \
@@ -1074,7 +1080,8 @@ root@mn-deployment-example-ipvlan-56f4fbcb4b-lqzpv:/# NCCL_DEBUG=INFO \
 
 # Pod 12
 # kubectl exec -it mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj -- /bin/bash
-root@mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj:/# NCCL_DEBUG=INFO \
+root@mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj:/# 
+    NCCL_DEBUG=INFO \
     NCCL_IB_GID_INDEX=7 \
     NCCL_SOCKET_IFNAME=eth0 \
     NCCL_IB_QPS_PER_CONNECTION=8 \
@@ -1094,7 +1101,8 @@ root@mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj:/# NCCL_DEBUG=INFO \
 
 # Pod 22
 # kubectl exec -it mn-deployment-example-ipvlan-56f4fbcb4b-qrgwq  -- /bin/bash
-root@mn-deployment-example-ipvlan-56f4fbcb4b-qrgwq:/# NCCL_DEBUG=INFO \
+root@mn-deployment-example-ipvlan-56f4fbcb4b-qrgwq:/# 
+    NCCL_DEBUG=INFO \
     NCCL_IB_GID_INDEX=7 \
     NCCL_SOCKET_IFNAME=eth0 \
     NCCL_IB_QPS_PER_CONNECTION=8 \
@@ -1109,7 +1117,8 @@ root@mn-deployment-example-ipvlan-56f4fbcb4b-qrgwq:/# NCCL_DEBUG=INFO \
 
 # Pod 12
 # kubectl exec -it mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj -- /bin/bash
-root@mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj:/# NCCL_DEBUG=INFO \
+root@mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj:/# 
+    NCCL_DEBUG=INFO \
     NCCL_IB_GID_INDEX=7 \
     NCCL_SOCKET_IFNAME=eth0 \
     NCCL_IB_QPS_PER_CONNECTION=8 \
