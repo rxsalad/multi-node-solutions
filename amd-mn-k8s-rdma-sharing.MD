@@ -97,9 +97,12 @@ Each pod sees its own fabricX interface through ipvlan, providing isolated IP co
 
 **The GID index can be configured either manually or automatically by setting the environment variable NCCL_IB_GID_INDEX to a specific value or to -1.**
 
-IPvlan supports both L2 and L3 modes. In L2 mode, pods are assigned unique IPs but share the same Layer 2 Ethernet domain, forming a flat network where **same-subnet pod-to-pod traffic is delivered directly via ARP without routing**, making it simple and suitable for smaller clusters. In L3 mode, pods also have unique IPs, but traffic is explicitly routed via static routes or dynamic routing protocols such as BGP, providing better scalability and isolation for large-scale deployments.
+[IPvlan](https://docs.docker.com/engine/network/drivers/ipvlan/) supports both L2 and L3 modes. In L2 mode, pods are assigned unique IPs but share the same Layer 2 Ethernet domain, forming a flat network where **same-subnet pod-to-pod traffic is delivered directly via ARP without routing**, making it simple and suitable for smaller clusters. In L3 mode, pods also have unique IPs, but traffic is explicitly routed via static routes or dynamic routing protocols such as BGP, providing better scalability and isolation for large-scale deployments.
 
 To manage IP assignment on each fabricX interface, [the Whereabouts IPAM CNI](https://github.com/k8snetworkplumbingwg/whereabouts) can be used. It provides dynamic allocation of IPs from a predefined pool, ensuring each pod receives a unique address within the same subnet (corresponding to a GPU fabric rail).
+
+[The macvlan CNI](https://www.cni.dev/plugins/current/main/macvlan/) is generally not recommended for this scenario. Unlike IPvlan, [Macvlan](https://docs.docker.com/engine/network/drivers/macvlan/) assigns a unique MAC address to each pod, increasing Layer 2 scaling overhead and the number of MAC addresses that upstream switches must learn. In virtualized environments, it also requires the hypervisor on the DO servers to allow multiple MAC addresses per vNIC (typically through promiscuous mode or MAC spoofing) for DOKS workers, a capability that is commonly restricted in public cloud deployments.
+
 
 ## Enabling RDMA Sharing in DOKS
 
@@ -1142,3 +1145,8 @@ root@mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj:/#
 Sharing RDMA devices across multiple distributed applications improves overall RDMA resource utilization and enables more flexible workload placement. However, dedicated RDMA resources remain the preferred configuration for mission-critical workloads because they provide predictable performance, stronger performance isolation, and more consistent latency.
 
 In addition, GPU-to-RDMA/RoCE NIC affinity should be preserved whenever possible. Aligning GPUs and RDMA/RoCE NICs within the same NUMA domain—and, for rail-optimized systems, within the same rail—minimizes cross-socket traffic, reduces communication overhead, and maximizes RDMA bandwidth while minimizing latency. See [the link](mi350x8-mn-rdma-testing.MD#summary) for test results covering different cross-node communication scenarios.
+
+
+
+
+
