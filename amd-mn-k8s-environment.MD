@@ -227,10 +227,10 @@ default via 159.89.128.1 dev eth0 proto static
 172.16.0.0/12 via 10.120.0.1 dev eth1 metric 101 mtu 1500 
 192.168.0.0/16 via 10.120.0.1 dev eth1 metric 101 mtu 1500 
 
-# Additional VPC-local network segment via eth0 
+# Anchor IP, Additional VPC-local network segment via eth0 
 10.46.0.0/16 dev eth0 scope link 
 
-# VPC Node Network via eth1 
+# Private IP, VPC Node Network via eth1 
 10.120.0.0/20 dev eth1 proto kernel scope link src 10.120.0.11 
 
 # Pod Network
@@ -238,7 +238,7 @@ default via 159.89.128.1 dev eth0 proto static
 10.121.0.128/25 via 10.120.0.3 dev eth1 proto kernel                        # to 128 Pods on rs-mn-mi350x8-pool-381iaq
 10.121.1.0/25 via 10.121.1.67 dev cilium_host proto kernel src 10.121.1.67  # to 128 Pods on the local node - rs-mn-mi350x8-pool-381iaf
 
-# Local pod interface route (CNI endpoint for host-pod communication)
+# Gateway of local pod interface route (CNI endpoint for host-pod communication)
 10.121.1.67 dev cilium_host proto kernel scope link 
 
 # Public Internet subnet 
