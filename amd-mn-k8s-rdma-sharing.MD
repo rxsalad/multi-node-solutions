@@ -77,6 +77,49 @@ fabric7          UP             fe80::90e3:17ff:fe97:8d90/64
 </details>
 </br>
 
+<details>
+<summary>MI350x8</summary>
+
+``` bash
+# RDMA devices exposed by the ionic driver 
+# ls /sys/class/infiniband/
+ionic_0  ionic_1  ionic_2  ionic_3  ionic_4  ionic_5  ionic_6  ionic_7
+
+# RDMA kernel device interfaces: RDMA control and verbs interfaces 
+# Expose RDMA capabilities to user-space applications (e.g., NCCL, UCX, MPI, GPUDirect RDMA)
+# ls /dev/infiniband/
+by-ibdev  rdma_cm  umad1  umad3  umad5  umad7    uverbs1  uverbs3  uverbs5  uverbs7
+by-path   umad0    umad2  umad4  umad6  uverbs0  uverbs2  uverbs4  uverbs6
+
+# RDMA GIDs per ionic device: each exposes RoCEv2 (GID[0], IP/UDP) only
+# All GIDs are fe80:: link-local identifiers derived from NIC MAC, one per fabric rail
+# Used by libibverbs/UCX/NCCL to select RDMA path and establish queue pair connectivity per interface
+# ibv_devinfo -v | grep GID
+                        GID[  0]:               fe80::490:81ff:fe49:c440, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe49:488, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe49:18f8, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe4a:6fb8, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe49:85d0, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe49:cbc0, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe49:d280, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe49:1eb0, RoCE v2
+
+# RDMA/RoCE fabric interfaces
+# Each interface represents a physical or logical RDMA-capable port used for data-plane traffic
+# ip -br a | grep fabric
+fabric0          UP             fe80::490:81ff:fe49:c440/64 
+fabric1          UP             fe80::490:81ff:fe49:488/64 
+fabric2          UP             fe80::490:81ff:fe49:18f8/64 
+fabric3          UP             fe80::490:81ff:fe4a:6fb8/64 
+fabric4          UP             fe80::490:81ff:fe49:85d0/64 
+fabric5          UP             fe80::490:81ff:fe49:cbc0/64 
+fabric6          UP             fe80::490:81ff:fe49:d280/64 
+fabric7          UP             fe80::490:81ff:fe49:1eb0/64 
+```
+
+</details>
+</br>
+
 The DOKS-managed RDMA device plugin (rdma-shared-dp-ds) supports sharing RDMA resources across multiple pods. Kubernetes resource requests and limits determine how many pods can share a specific RDMA device (for example, mlx5_0 or ionic_0). Each RDMA device is assigned [an rdmaHcaMax capacity](https://github.com/Mellanox/k8s-rdma-shared-dev-plugin#rdma-shared-device-plugin-configurations) (default: 100 on DOKS), and each pod requests a portion of that capacity.
 
 For example, if each pod requests 25, up to four pods can share the same RDMA device on a node. If exclusive access is required, a pod can request [the full capacity](rdma-sharing/rccl-test-2-nodes-mi350x8-ipvlan.yaml#L162) (100), which reserves the entire RDMA device and prevents any other pod from being scheduled to use it.
@@ -347,6 +390,16 @@ kubectl delete -f rdma-sharing/ipvlan-network-attachments.yaml
 
 ### Application Deployment
 
+Create a Kubernetes ConfigMap that stores [amd-mn-doks/p2p_bw_test.py](amd-mn-doks/p2p_bw_test.py). The ConfigMap will be mounted into the pods so the script can run in a distributed environment.
+
+``` bash
+# Mount the test script into the Pods.
+# kubectl create configmap mn-python-script --from-file=amd-mn-doks/p2p_bw_test.py
+
+# kubectl describe configmap mn-python-script
+# kubectl delete configmap mn-python-script
+```
+
 Build and deploy the Kubernetes manifest [rdma-sharing/mn-deployment-example-ipvlan-4pods-2nodes.yaml](rdma-sharing/mn-deployment-example-ipvlan-4pods-2nodes.yaml) to create four 4-GPU Pods across two DOKS workers with RDMA sharing enabled on all RDMA devices. Each pod requests 10 RDMA shares (out of the 100 configured by rdmaHcaMax) for each shared RDMA device and is assigned a dedicated virtual fabricX interface for it, allowing it to configure its own IP address while sharing the underlying physical RDMA NICs.
 
 This deployment simulates multiple distributed applications concurrently sharing the same RDMA devices.
@@ -482,12 +535,6 @@ spec:
 <summary>MI325x8 DOKS</summary>
 
 ``` bash
-# Mount the test script into the Pods.
-# kubectl create configmap mn-python-script --from-file=amd-mn-doks/p2p_bw_test.py
-
-# kubectl describe configmap mn-python-script
-# kubectl delete configmap mn-python-script
-
 # kubectl get nodes -o wide
 NAME                          STATUS   ROLES    AGE    VERSION   INTERNAL-IP   EXTERNAL-IP       OS-IMAGE                       KERNEL-VERSION        CONTAINER-RUNTIME
 rs-mn-cpu-power-pool-3crqkh   Ready    <none>   7d1h   v1.34.1   10.118.0.8    165.22.238.61     Debian GNU/Linux 13 (trixie)   6.12.48+deb13-amd64   containerd://1.7.28
@@ -661,11 +708,187 @@ Events:              <none>
 </details>
 </br>
 
+<details>
+<summary>MI350x8 DOKS</summary>
+
+``` bash
+# kubectl get nodes -o wide
+NAME                        STATUS   ROLES    AGE   VERSION   INTERNAL-IP   EXTERNAL-IP      OS-IMAGE                       KERNEL-VERSION        CONTAINER-RUNTIME
+rs-mn-cpu-pool-381iam       Ready    <none>   32d   v1.34.1   10.120.0.6    167.71.156.33    Debian GNU/Linux 13 (trixie)   6.12.48+deb13-amd64   containerd://1.7.28
+rs-mn-mi350x8-pool-3ckyx0   Ready    <none>   15h   v1.34.1   10.120.0.3    167.172.123.21   Debian GNU/Linux 13 (trixie)   6.12.48+deb13-amd64   containerd://1.7.28
+
+# kubectl apply -f rdma-sharing/mn-deployment-example-ipvlan-4pods-2nodes.yaml
+# kubectl delete -f rdma-sharing/mn-deployment-example-ipvlan-4pods-2nodes.yaml
+
+# kubectl get pods -o wide
+NAME                                            READY   STATUS    RESTARTS   AGE   IP            NODE                        NOMINATED NODE   READINESS GATES
+mn-deployment-example-ipvlan-56f4fbcb4b-5wkmg   1/1     Running   0          74s   10.121.4.25   rs-mn-mi350x8-pool-3ckyx0   <none>           <none>
+mn-deployment-example-ipvlan-56f4fbcb4b-9slbd   0/1     Pending   0          74s   <none>        <none>                      <none>           <none>
+mn-deployment-example-ipvlan-56f4fbcb4b-mqr88   1/1     Running   0          74s   10.121.4.66   rs-mn-mi350x8-pool-3ckyx0   <none>           <none>
+mn-deployment-example-ipvlan-56f4fbcb4b-z5v8z   0/1     Pending   0          74s   <none>        <none>                      <none>           <none>
+
+# 20 shares are used for each RDMA device on the DOKS worker
+# kubectl describe node rs-mn-mi325x8-pool-3c35jt
+Name:               rs-mn-mi350x8-pool-3ckyx0
+Roles:              <none>
+Labels:             amd.com/gpu=8
+                    beta.kubernetes.io/arch=amd64
+                    beta.kubernetes.io/instance-type=gpu-mi350x8-2304gb-fabric-contracted
+                    beta.kubernetes.io/os=linux
+                    doks.digitalocean.com/gpu-brand=amd
+                    doks.digitalocean.com/gpu-model=mi350x
+                    doks.digitalocean.com/is-gpu-fabric-connected=true
+                    doks.digitalocean.com/managed=true
+                    doks.digitalocean.com/node-id=01b47d2c-b6c0-4156-b2ac-132459530fac
+                    doks.digitalocean.com/node-pool=rs-mn-mi350x8-pool
+                    doks.digitalocean.com/node-pool-id=269062e6-0689-49ed-9a7d-bb80779adbb9
+                    doks.digitalocean.com/version=1.34.1-do.2
+                    failure-domain.beta.kubernetes.io/region=sfo2
+                    kubernetes.io/arch=amd64
+                    kubernetes.io/hostname=rs-mn-mi350x8-pool-3ckyx0
+                    kubernetes.io/os=linux
+                    node.kubernetes.io/instance-type=gpu-mi350x8-2304gb-fabric-contracted
+                    region=sfo2
+                    topology.kubernetes.io/region=sfo2
+Annotations:        alpha.kubernetes.io/provided-node-ip: 10.120.0.3
+                    csi.volume.kubernetes.io/nodeid: {"dobs.csi.digitalocean.com":"581938911"}
+                    network.cilium.io/ipv4-Ingress-ip: 10.121.4.39
+                    network.cilium.io/ipv4-cilium-host: 10.121.4.17
+                    network.cilium.io/ipv4-health-ip: 10.121.4.118
+                    network.cilium.io/ipv4-pod-cidr: 10.121.4.0/25
+                    node.alpha.kubernetes.io/ttl: 0
+                    volumes.kubernetes.io/controller-managed-attach-detach: true
+CreationTimestamp:  Fri, 03 Jul 2026 01:33:07 +0000
+Taints:             amd.com/gpu:NoSchedule
+Unschedulable:      false
+Lease:
+  HolderIdentity:  rs-mn-mi350x8-pool-3ckyx0
+  AcquireTime:     <unset>
+  RenewTime:       Fri, 03 Jul 2026 17:03:28 +0000
+Conditions:
+  Type                             Status  LastHeartbeatTime                 LastTransitionTime                Reason                       Message
+  ----                             ------  -----------------                 ------------------                ------                       -------
+  NetworkUnavailable               False   Fri, 03 Jul 2026 01:33:43 +0000   Fri, 03 Jul 2026 01:33:43 +0000   CiliumIsUp                   Cilium is running on this node
+  MemoryPressure                   False   Fri, 03 Jul 2026 17:01:05 +0000   Fri, 03 Jul 2026 01:33:07 +0000   KubeletHasSufficientMemory   kubelet has sufficient memory available
+  DiskPressure                     False   Fri, 03 Jul 2026 17:01:05 +0000   Fri, 03 Jul 2026 01:33:07 +0000   KubeletHasNoDiskPressure     kubelet has no disk pressure
+  PIDPressure                      False   Fri, 03 Jul 2026 17:01:05 +0000   Fri, 03 Jul 2026 01:33:07 +0000   KubeletHasSufficientPID      kubelet has sufficient PID available
+  Ready                            True    Fri, 03 Jul 2026 17:01:05 +0000   Fri, 03 Jul 2026 01:33:39 +0000   KubeletReady                 kubelet is posting ready status
+  doks.kubernetes.io/AmdGpuReady   True    Fri, 03 Jul 2026 17:03:31 +0000   Fri, 03 Jul 2026 01:34:01 +0000   EndpointOK                   Endpoint reports ready at http://127.0.0.1:5000/metrics
+Addresses:
+  InternalIP:  10.120.0.3
+  Hostname:    rs-mn-mi350x8-pool-3ckyx0
+  ExternalIP:  167.172.123.21
+Capacity:
+  amd.com/gpu:        8
+  cpu:                192
+  ephemeral-storage:  2111508792Ki
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             2113762604Ki
+  pods:               110
+  rdma/fabric0:       100
+  rdma/fabric1:       100
+  rdma/fabric10:      0
+  rdma/fabric11:      0
+  rdma/fabric12:      0
+  rdma/fabric13:      0
+  rdma/fabric14:      0
+  rdma/fabric15:      0
+  rdma/fabric2:       100
+  rdma/fabric3:       100
+  rdma/fabric4:       100
+  rdma/fabric5:       100
+  rdma/fabric6:       100
+  rdma/fabric7:       100
+  rdma/fabric8:       0
+  rdma/fabric9:       0
+Allocatable:
+  amd.com/gpu:        8
+  cpu:                191420m
+  ephemeral-storage:  1945966499486
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             2064043308Ki
+  pods:               110
+  rdma/fabric0:       100
+  rdma/fabric1:       100
+  rdma/fabric10:      0
+  rdma/fabric11:      0
+  rdma/fabric12:      0
+  rdma/fabric13:      0
+  rdma/fabric14:      0
+  rdma/fabric15:      0
+  rdma/fabric2:       100
+  rdma/fabric3:       100
+  rdma/fabric4:       100
+  rdma/fabric5:       100
+  rdma/fabric6:       100
+  rdma/fabric7:       100
+  rdma/fabric8:       0
+  rdma/fabric9:       0
+System Info:
+  Machine ID:                 5adeb75607b74b83820902ed455326b0
+  System UUID:                5adeb756-07b7-4b83-8209-02ed455326b0
+  Boot ID:                    c756b37d-817e-4621-a5c6-b804f1d241da
+  Kernel Version:             6.12.48+deb13-amd64
+  OS Image:                   Debian GNU/Linux 13 (trixie)
+  Operating System:           linux
+  Architecture:               amd64
+  Container Runtime Version:  containerd://1.7.28
+  Kubelet Version:            v1.34.1
+  Kube-Proxy Version:         
+ProviderID:                   digitalocean://581938911
+Non-terminated Pods:          (11 in total)
+  Namespace                   Name                                               CPU Requests  CPU Limits  Memory Requests  Memory Limits  Age
+  ---------                   ----                                               ------------  ----------  ---------------  -------------  ---
+  default                     mn-deployment-example-ipvlan-56f4fbcb4b-5wkmg      0 (0%)        0 (0%)      0 (0%)           0 (0%)         100s
+  default                     mn-deployment-example-ipvlan-56f4fbcb4b-mqr88      0 (0%)        0 (0%)      0 (0%)           0 (0%)         100s
+  kube-system                 amd-gpu-device-plugin-hfjdd                        0 (0%)        0 (0%)      0 (0%)           0 (0%)         15h
+  kube-system                 cilium-qwrf8                                       320m (0%)     0 (0%)      350Mi (0%)       50Mi (0%)      15h
+  kube-system                 cpc-bridge-proxy-ebpf-rz7dq                        100m (0%)     0 (0%)      75Mi (0%)        0 (0%)         15h
+  kube-system                 csi-do-node-d7zns                                  0 (0%)        0 (0%)      0 (0%)           0 (0%)         15h
+  kube-system                 do-node-agent-amd-device-metrics-exporter-64x9r    312m (0%)     1050m (0%)  312Mi (0%)       1356Mi (0%)    15h
+  kube-system                 doks-telemetry-config-reloader-xfsnr               0 (0%)        0 (0%)      0 (0%)           0 (0%)         15h
+  kube-system                 kube-multus-ds-vgwvn                               100m (0%)     100m (0%)   50Mi (0%)        50Mi (0%)      15h
+  kube-system                 rdma-shared-dp-ds-g57cr                            0 (0%)        0 (0%)      0 (0%)           0 (0%)         15h
+  kube-system                 whereabouts-hlwdz                                  100m (0%)     100m (0%)   100Mi (0%)       200Mi (0%)     15h
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests    Limits
+  --------           --------    ------
+  cpu                932m (0%)   1250m (0%)
+  memory             887Mi (0%)  1656Mi (0%)
+  ephemeral-storage  5Gi (0%)    10Gi (0%)
+  hugepages-1Gi      0 (0%)      0 (0%)
+  hugepages-2Mi      0 (0%)      0 (0%)
+  amd.com/gpu        8           8
+  rdma/fabric0       20          20
+  rdma/fabric1       20          20
+  rdma/fabric10      0           0
+  rdma/fabric11      0           0
+  rdma/fabric12      0           0
+  rdma/fabric13      0           0
+  rdma/fabric14      0           0
+  rdma/fabric15      0           0
+  rdma/fabric2       20          20
+  rdma/fabric3       20          20
+  rdma/fabric4       20          20
+  rdma/fabric5       20          20
+  rdma/fabric6       20          20
+  rdma/fabric7       20          20
+  rdma/fabric8       0           0
+  rdma/fabric9       0           0
+Events:              <none>
+```
+
+</details>
+</br>
+
 ### GID on the Host
 
-Initially, each RDMA device exposes two GID entries corresponding to the DOKS worker's fabricX interface: one for RoCE v1 and one for RoCE v2, both using the interface's IPv6 link-local address.
+For MI325x8, initially, each RDMA device exposes two GID entries corresponding to the DOKS worker's fabricX interface: one for RoCE v1 and one for RoCE v2, both using the interface's IPv6 link-local address.
 
-After two pods are created, each with its own virtual fabricX interface for every RDMA device, eight additional GID entries are appended to the shared GID table. Each pod contributes four GID entries:
+After two pods are created, each with its own virtual fabricX interface for every RDMA device, eight additional GID entries are appended to the shared GID table, resulting in 10 GID entries per RDMA device. Each pod contributes the following four GID entries:
 
 - IPv4-mapped IPv6 GID (RoCE v1)
 - IPv4-mapped IPv6 GID (RoCE v2)
@@ -673,6 +896,8 @@ After two pods are created, each with its own virtual fabricX interface for ever
 - IPv6 link-local GID (RoCE v2)
 
 The IPv4-mapped GIDs are derived from the IPv4 address assigned by Whereabouts, while the IPv6 link-local GIDs are generated from the kernel-assigned IPv6 link-local address on the pod's ipvlan interface.
+
+On MI350x8, the RDMA device driver no longer supports RoCE v1 GIDs. Consequently, each RDMA device exposes only RoCE v2 GID entries. After two pods are running, each RDMA device has a total of five GID entries: one for the DOKS worker's fabricX interface and two additional RoCE v2 GIDs from each pod (an IPv4-mapped IPv6 GID and an IPv6 link-local GID).
 
 Because the DOKS worker and all pods share the same RDMA device and GID table, each pod (and the host - DOKS worker) must select the GID index corresponding to the IP address assigned to its own fabricX interface. This ensures that the RDMA Connection Manager (RDMA CM) binds the Queue Pair (QP) to the correct source address and underlying interface during connection establishment. 
 
@@ -697,7 +922,7 @@ fabric7          UP             fe80::90e3:17ff:fe97:8d90/64
 root@rs-mn-mi325x8-pool-3c35jt:~# ibv_devinfo -v | grep GID
 			GID[  0]:		fe80:0000:0000:0000:90e3:17ff:fe97:8748, RoCE v1 # Fabric 0
 			GID[  1]:		fe80::90e3:17ff:fe97:8748, RoCE v2
-			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:6403, RoCE v1 # 4 GID entries for the Pod: @mn-deployment-example-ipvlan-56f4fbcb4b-rlxkv 
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:6403, RoCE v1 # 4 GID entries for the Pod: mn-deployment-example-ipvlan-56f4fbcb4b-rlxkv 
 			GID[  3]:		::ffff:192.168.100.3, RoCE v2                    # GID 3
 			GID[  4]:		fe80:0000:0000:0000:92e3:1700:0297:8748, RoCE v1 
 			GID[  5]:		fe80::92e3:1700:297:8748, RoCE v2
@@ -778,6 +1003,71 @@ root@rs-mn-mi325x8-pool-3c35jt:~# ibv_devinfo -v | grep GID
 
 root@rs-mn-mi325x8-pool-3c35jt:~# python3 rdma_mapping.py 
 {'mlx5_0': ('fabric0', 1), 'mlx5_1': ('fabric1', 1), 'mlx5_2': ('fabric2', 1), 'mlx5_3': ('fabric3', 1), 'mlx5_4': ('fabric4', 1), 'mlx5_5': ('fabric5', 1), 'mlx5_6': ('fabric6', 1), 'mlx5_7': ('fabric7', 1)}
+```
+
+</details>
+</br>
+
+<details>
+<summary>MI350x8: Host OS</summary>
+
+**DOSK Worker: rs-mn-mi350x8-pool-3ckyx0 (GID Index 0,0,0,0,0,0,0,0)**
+
+``` bash
+root@rs-mn-mi350x8-pool-3ckyx0:~# ip -br a | grep fabric
+fabric0          UP             fe80::490:81ff:fe49:c440/64 
+fabric1          UP             fe80::490:81ff:fe49:488/64 
+fabric2          UP             fe80::490:81ff:fe49:18f8/64 
+fabric3          UP             fe80::490:81ff:fe4a:6fb8/64 
+fabric4          UP             fe80::490:81ff:fe49:85d0/64 
+fabric5          UP             fe80::490:81ff:fe49:cbc0/64 
+fabric6          UP             fe80::490:81ff:fe49:d280/64 
+fabric7          UP             fe80::490:81ff:fe49:1eb0/64
+
+root@rs-mn-mi350x8-pool-3ckyx0:~# ibv_devinfo -v | grep GID
+                        GID[  0]:               fe80::490:81ff:fe49:c440, RoCE v2 # Fabric 0
+                        GID[  1]:               ::ffff:192.168.100.1, RoCE v2     # 2 GID entries for the Pod: mn-deployment-example-ipvlan-56f4fbcb4b-mqr88   
+                        GID[  2]:               fe80::690:8100:249:c440, RoCE v2
+                        GID[  3]:               ::ffff:192.168.100.2, RoCE v2     # 2 GID entries for the Pod: mn-deployment-example-ipvlan-56f4fbcb4b-5wkmg   
+                        GID[  4]:               fe80::690:8100:149:c440, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe49:488, RoCE v2  # Fabric 1
+                        GID[  1]:               ::ffff:192.168.101.1, RoCE v2
+                        GID[  2]:               fe80::690:8100:149:488, RoCE v2
+                        GID[  3]:               ::ffff:192.168.101.2, RoCE v2
+                        GID[  4]:               fe80::690:8100:249:488, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe49:18f8, RoCE v2 # Fabric 2
+                        GID[  1]:               ::ffff:192.168.102.1, RoCE v2
+                        GID[  2]:               fe80::690:8100:149:18f8, RoCE v2
+                        GID[  3]:               ::ffff:192.168.102.2, RoCE v2
+                        GID[  4]:               fe80::690:8100:249:18f8, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe4a:6fb8, RoCE v2 # Fabric 3
+                        GID[  1]:               ::ffff:192.168.103.1, RoCE v2
+                        GID[  2]:               fe80::690:8100:14a:6fb8, RoCE v2
+                        GID[  3]:               ::ffff:192.168.103.2, RoCE v2
+                        GID[  4]:               fe80::690:8100:24a:6fb8, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe49:85d0, RoCE v2 # Fabric 4
+                        GID[  1]:               ::ffff:192.168.104.1, RoCE v2
+                        GID[  2]:               fe80::690:8100:149:85d0, RoCE v2
+                        GID[  3]:               ::ffff:192.168.104.2, RoCE v2
+                        GID[  4]:               fe80::690:8100:249:85d0, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe49:cbc0, RoCE v2 # Fabric 5
+                        GID[  1]:               ::ffff:192.168.105.1, RoCE v2
+                        GID[  2]:               fe80::690:8100:149:cbc0, RoCE v2
+                        GID[  3]:               ::ffff:192.168.105.2, RoCE v2
+                        GID[  4]:               fe80::690:8100:249:cbc0, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe49:d280, RoCE v2 # Fabric 6
+                        GID[  1]:               ::ffff:192.168.106.1, RoCE v2
+                        GID[  2]:               fe80::690:8100:149:d280, RoCE v2
+                        GID[  3]:               ::ffff:192.168.106.2, RoCE v2
+                        GID[  4]:               fe80::690:8100:249:d280, RoCE v2
+                        GID[  0]:               fe80::490:81ff:fe49:1eb0, RoCE v2 # Fabric 7
+                        GID[  1]:               ::ffff:192.168.107.1, RoCE v2
+                        GID[  2]:               fe80::690:8100:149:1eb0, RoCE v2
+                        GID[  3]:               ::ffff:192.168.107.2, RoCE v2
+                        GID[  4]:               fe80::690:8100:249:1eb0, RoCE v2
+
+root@rs-mn-mi350x8-pool-3ckyx0:~# python3 rdma_mapping.py 
+{'ionic_0': ('fabric0', 0), 'ionic_1': ('fabric1', 0), 'ionic_2': ('fabric2', 0), 'ionic_3': ('fabric3', 0), 'ionic_4': ('fabric4', 0), 'ionic_5': ('fabric5', 0), 'ionic_6': ('fabric6', 0), 'ionic_7': ('fabric7', 0)}
 ```
 
 </details>
