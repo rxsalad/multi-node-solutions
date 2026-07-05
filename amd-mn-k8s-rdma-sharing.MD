@@ -140,7 +140,7 @@ Each pod sees its own fabricX interface through ipvlan, providing isolated IP co
 
 **The GID index can be configured either manually or automatically by setting the environment variable NCCL_IB_GID_INDEX to a specific value or to -1.**
 
-[IPvlan](https://docs.docker.com/engine/network/drivers/ipvlan/) supports both L2 and L3 modes. In L2 mode, pods are assigned unique IP addresses while sharing the Layer 2 Ethernet domain of the underlying physical fabricX interface. Each rail in the GPU fabric remains an independent Layer 2 broadcast domain, allowing pods on the same subnet to communicate directly through ARP without Layer 3 routing. In L3 mode, pods also receive unique IP addresses, but traffic is forwarded using Layer 3 routing via static routes or dynamic routing protocols such as BGP, providing greater scalability and network isolation. Since the current rail-only GPU fabric consists of eight independent Layer 2 domains, IPvlan L2 mode aligns naturally with the existing network architecture, making it a simple and efficient solution.
+[IPvlan](https://docs.docker.com/engine/network/drivers/ipvlan/) supports both L2 and L3 modes. In L2 mode, pods are assigned unique IP addresses while sharing the Layer 2 Ethernet domain of the underlying physical fabricX interface. Each rail in the GPU fabric remains an independent Layer 2 broadcast domain, allowing pods on the same subnet to communicate directly through ARP without Layer 3 routing. In L3 mode, pods also receive unique IP addresses, but traffic is forwarded using Layer 3 routing via static routes or dynamic routing protocols such as BGP, providing greater scalability and network isolation. **Since the current rail-only GPU fabric consists of eight independent Layer 2 domains, IPvlan L2 mode aligns naturally with the existing network architecture, making it a simple and efficient solution.**
 
 To manage IP assignment on each fabricX interface, [the Whereabouts IPAM CNI](https://github.com/k8snetworkplumbingwg/whereabouts) can be used. It provides dynamic allocation of IPs from a predefined pool, ensuring each pod receives a unique address within the same subnet (corresponding to a GPU fabric rail).
 
@@ -1103,6 +1103,7 @@ Using host-device CNI, fabricX is a real host netdev moved into the pod network 
 
 **Pod 1: mn-deployment-example-ipvlan-56f4fbcb4b-rlxkv  (GID Index 3,3,3,3,3,3,3,3)**
 ``` bash
+# UNKNOWN is normal for IPVLAN virtual interfaces because they do not reflect the underlying physical interface state.
 root@mn-deployment-example-ipvlan-56f4fbcb4b-rlxkv:/# ip -br a
 lo               UNKNOWN        127.0.0.1/8 ::1/128 
 fabric0@if4      UNKNOWN        192.168.100.3/24 fe80::92e3:1700:297:8748/64 
@@ -1115,6 +1116,7 @@ fabric6@if10     UNKNOWN        192.168.106.2/24 fe80::92e3:1700:196:e228/64
 fabric7@if11     UNKNOWN        192.168.107.2/24 fe80::92e3:1700:197:8d90/64 
 eth0@if177       UP             10.119.0.229/32 fe80::1c3b:22ff:fe92:2af5/64
 
+# The fabricX are virtual interfaces in the pod namespace. It provides correct L2/IP connectivity, but RDMA cannot resolve the netdev association in `rdma link`. This is a visibility limitation only and does not affect RDMA functionality.
 root@mn-deployment-example-ipvlan-56f4fbcb4b-rlxkv:/# rdma link
 link mlx5_0/1 state ACTIVE physical_state LINK_UP 
 link mlx5_1/1 state ACTIVE physical_state LINK_UP  
@@ -1321,9 +1323,9 @@ root@mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj:/# python3 rdma_mapping.py
 |3| mn-deployment-example-ipvlan-56f4fbcb4b-9slbd   | 10.121.4.150                     | 192.168.100.4,192.168.101.4,192.168.102.4,192.168.103.3,192.168.104.3,192.168.105.3,192.168.106.3,192.168.107.3</br> | rs-mn-mi350x8-pool-3cv7zt |
 |4| mn-deployment-example-ipvlan-56f4fbcb4b-z5v8z  | 10.121.4.210                   | 192.168.100.3,192.168.101.3,192.168.102.3,192.168.103.4,192.168.104.4,192.168.105.4,192.168.106.4,192.168.107.4</br>  | rs-mn-mi350x8-pool-3cv7zt |
 
-
 **Pod 1: mn-deployment-example-ipvlan-56f4fbcb4b-5wkmg  (GID Index 3,3,3,3,3,3,3,3)**
 ``` bash
+# UNKNOWN is normal for IPVLAN virtual interfaces because they do not reflect the underlying physical interface state.
 root@mn-deployment-example-ipvlan-56f4fbcb4b-5wkmg:/# ip -br a
 lo               UNKNOWN        127.0.0.1/8 ::1/128 
 fabric0@if3      UNKNOWN        192.168.100.2/24 fe80::690:8100:149:c440/64 
@@ -1336,6 +1338,7 @@ fabric6@if10     UNKNOWN        192.168.106.2/24 fe80::690:8100:249:d280/64
 fabric7@if11     UNKNOWN        192.168.107.2/24 fe80::690:8100:249:1eb0/64 
 eth0@if23        UP             10.121.4.25/32 fe80::34b5:b5ff:fef3:ace6/64 
 
+# The fabricX are virtual interfaces in the pod namespace. It provides correct L2/IP connectivity, but RDMA cannot resolve the netdev association in `rdma link`. This is a visibility limitation only and does not affect RDMA functionality.
 root@mn-deployment-example-ipvlan-56f4fbcb4b-5wkmg:/# rdma link
 link ionic_0/1 state ACTIVE physical_state LINK_UP 
 link ionic_1/1 state ACTIVE physical_state LINK_UP 
@@ -1589,7 +1592,6 @@ root@mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj:/#
 **Application 3: Pod 22 -> Pod 12**
 
 ``` bash
-
 # Pod 22
 # kubectl exec -it mn-deployment-example-ipvlan-56f4fbcb4b-qrgwq  -- /bin/bash
 root@mn-deployment-example-ipvlan-56f4fbcb4b-qrgwq:/# 
@@ -1619,6 +1621,127 @@ root@mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj:/#
     WORLD_SIZE=2 \
     RANK=1 \
     NCCL_IB_HCA=mlx5_0 \
+    GPU_ID=0 \
+    python3 /p2p_bw_test.py
+```
+
+</details>
+</br>
+
+<details>
+<summary>MI350: RDMA Resource Sharing Across Applications</summary>
+
+|No| Pods                                                 | eth 0                           | GID indexes based on the 1st IP          | DOKS worker |
+|-| ------------------------------------------------------| ------------------------------- | -----------------| ------------------------------------ |
+|1| Pod 11: mn-deployment-example-ipvlan-56f4fbcb4b-5wkmg | 10.121.4.25                   | 3/3/3/3/3/3/3/3 | Worker 1: rs-mn-mi350x8-pool-3ckyx0 |
+|2| Pod 12: mn-deployment-example-ipvlan-56f4fbcb4b-mqr88 | 10.121.4.66                   | 1/1/1/1/1/1/1/1 | Worker 1: rs-mn-mi350x8-pool-3ckyx0 |
+|3| Pod 21: mn-deployment-example-ipvlan-56f4fbcb4b-9slbd | 10.121.4.150                   | 3/3/3/1/1/1/1/1 | Worker 2: rs-mn-mi350x8-pool-3cv7zt |
+|4| Pod 22: mn-deployment-example-ipvlan-56f4fbcb4b-z5v8z | 10.121.4.210                   | 1/1/1/3/3/3/3/3 | Worker 2: rs-mn-mi350x8-pool-3cv7zt |
+ 
+**Application 1: Pod 21 -> Pod 11**
+
+``` bash
+# Pod 21
+# kubectl exec -it mn-deployment-example-ipvlan-56f4fbcb4b-9slbd  -- /bin/bash
+root@mn-deployment-example-ipvlan-56f4fbcb4b-9slbd:/# 
+    NCCL_DEBUG=INFO \
+    NCCL_IB_GID_INDEX=-1 \
+    NCCL_SOCKET_IFNAME=eth0 \
+    NCCL_IB_QPS_PER_CONNECTION=8 \
+    NCCL_P2P_CHUNKSIZE=16777216 \
+    MASTER_ADDR=10.121.4.150 \
+    MASTER_PORT=12356 \
+    WORLD_SIZE=2 \
+    RANK=0 \
+    NCCL_IB_HCA=ionic_0 \
+    GPU_ID=0 \
+    python3 /p2p_bw_test.py
+
+# Pod 11
+# kubectl exec -it mn-deployment-example-ipvlan-56f4fbcb4b-5wkmg -- /bin/bash
+root@mn-deployment-example-ipvlan-56f4fbcb4b-5wkmg:/# 
+    NCCL_DEBUG=INFO \
+    NCCL_IB_GID_INDEX=-1 \
+    NCCL_SOCKET_IFNAME=eth0 \
+    NCCL_IB_QPS_PER_CONNECTION=8 \
+    NCCL_P2P_CHUNKSIZE=16777216 \
+    MASTER_ADDR=10.121.4.150 \
+    MASTER_PORT=12356 \
+    WORLD_SIZE=2 \
+    RANK=1 \
+    NCCL_IB_HCA=ionic_0 \
+    GPU_ID=0 \
+    python3 /p2p_bw_test.py
+```
+
+**Application 2: Pod 21 -> Pod 12**
+
+```bash
+# Pod 21
+# kubectl exec -it mn-deployment-example-ipvlan-56f4fbcb4b-9slbd  -- /bin/bash
+root@mn-deployment-example-ipvlan-56f4fbcb4b-9slbd:/# 
+    NCCL_DEBUG=INFO \
+    NCCL_IB_GID_INDEX=-1 \
+    NCCL_SOCKET_IFNAME=eth0 \
+    NCCL_IB_QPS_PER_CONNECTION=8 \
+    NCCL_P2P_CHUNKSIZE=16777216 \
+    MASTER_ADDR=10.121.4.150 \
+    MASTER_PORT=12357 \
+    WORLD_SIZE=2 \
+    RANK=0 \
+    NCCL_IB_HCA=ionic_0 \
+    GPU_ID=0 \
+    python3 /p2p_bw_test.py
+
+# Pod 12
+# kubectl exec -it mn-deployment-example-ipvlan-56f4fbcb4b-mqr88 -- /bin/bash
+root@mn-deployment-example-ipvlan-56f4fbcb4b-mqr88:/# 
+    NCCL_DEBUG=INFO \
+    NCCL_IB_GID_INDEX=-1 \
+    NCCL_SOCKET_IFNAME=eth0 \
+    NCCL_IB_QPS_PER_CONNECTION=8 \
+    NCCL_P2P_CHUNKSIZE=16777216 \
+    MASTER_ADDR=10.121.4.150 \
+    MASTER_PORT=12357 \
+    WORLD_SIZE=2 \
+    RANK=1 \
+    NCCL_IB_HCA=ionic_0 \
+    GPU_ID=0 \
+    python3 /p2p_bw_test.py
+```
+
+**Application 3: Pod 22 -> Pod 12**
+
+``` bash
+# Pod 22
+# kubectl exec -it mn-deployment-example-ipvlan-56f4fbcb4b-z5v8z  -- /bin/bash
+root@mn-deployment-example-ipvlan-56f4fbcb4b-z5v8z:/# 
+    NCCL_DEBUG=INFO \
+    NCCL_IB_GID_INDEX=-1 \
+    NCCL_SOCKET_IFNAME=eth0 \
+    NCCL_IB_QPS_PER_CONNECTION=8 \
+    NCCL_P2P_CHUNKSIZE=16777216 \
+    MASTER_ADDR=10.121.4.210 \
+    MASTER_PORT=12356 \
+    WORLD_SIZE=2 \
+    RANK=0 \
+    NCCL_IB_HCA=ionic_0 \
+    GPU_ID=0 \
+    python3 /p2p_bw_test.py
+
+# Pod 12
+# kubectl exec -it mn-deployment-example-ipvlan-56f4fbcb4b-mqr88 -- /bin/bash
+root@mn-deployment-example-ipvlan-56f4fbcb4b-mqr88:/# 
+    NCCL_DEBUG=INFO \
+    NCCL_IB_GID_INDEX=-1 \
+    NCCL_SOCKET_IFNAME=eth0 \
+    NCCL_IB_QPS_PER_CONNECTION=8 \
+    NCCL_P2P_CHUNKSIZE=16777216 \
+    MASTER_ADDR=10.121.4.210 \
+    MASTER_PORT=12356 \
+    WORLD_SIZE=2 \
+    RANK=1 \
+    NCCL_IB_HCA=ionic_0 \
     GPU_ID=0 \
     python3 /p2p_bw_test.py
 ```
