@@ -1210,7 +1210,7 @@ Address                  HWtype  HWaddress           Flags Mask            Iface
 192.168.107.4            ether   92:e3:17:97:8f:f0   C                     fabric7
 ```
 
-**Pod 2: mn-deployment-example-ipvlan-56f4fbcb4b-4s6r  (GID Index 7,7,7,7,7,7,7,7)**
+**Pod 2: mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj  (GID Index 7,7,7,7,7,7,7,7)**
 ``` bash
 root@mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj:/# ip -br a
 lo               UNKNOWN        127.0.0.1/8 ::1/128 
