@@ -134,13 +134,13 @@ The Ethernet interfaces, such as fabric0 for mlx5_0, are also required for RDMA/
 
 <img src="rdma-sharing/two_stacks.png" alt="GPU Network" width="800" height="500"/>
 
-To enable multiple pods to share access to the fabric0–fabric7 interfaces, [the ipvlan CNI](https://www.cni.dev/plugins/current/main/ipvlan/) can be used. It creates virtual fabricX interfaces inside each pod that are logically isolated but multiplexed over the same underlying physical fabricX NICs. These virtual interfaces inherit the parent device’s network characteristics while avoiding MAC address explosion by sharing the MAC address of the underlying physical interface.
+To enable multiple pods to share access to the fabric0–fabric7 interfaces, [the ipvlan CNI](https://www.cni.dev/plugins/current/main/ipvlan/) can be used. It creates virtual fabricX interfaces inside each pod that are logically isolated but multiplexed over the same underlying physical fabricX interfaces on the DOKS worker. These virtual interfaces inherit the parent device’s network characteristics while avoiding MAC address explosion by sharing the MAC address of the underlying physical interface.
 
 Each pod sees its own fabricX interface through ipvlan, providing isolated IP configuration and routing while the RDMA stack continues to operate on the shared physical NIC. Because [GID](https://networking-docs.nvidia.com/doca/archive/3-4-0/rdma-over-converged-ethernet#GID-Table-Population) (Global Identifier) entries are maintained at the physical NIC level and derived from the underlying network interfaces, all pods share the same RDMA devices and GID namespace. Each pod must therefore select the GID index corresponding to the IP assigned to its fabricX interface so that RDMA uses the correct network interface during connection setup. 
 
 **The GID index can be configured either manually or automatically by setting the environment variable NCCL_IB_GID_INDEX to a specific value or to -1.**
 
-[IPvlan](https://docs.docker.com/engine/network/drivers/ipvlan/) supports both L2 and L3 modes. In L2 mode, pods are assigned unique IPs but share the same Layer 2 Ethernet domain, forming a flat network where **same-subnet pod-to-pod traffic is delivered directly via ARP without routing**, making it simple and suitable for smaller clusters. In L3 mode, pods also have unique IPs, but traffic is explicitly routed via static routes or dynamic routing protocols such as BGP, providing better scalability and isolation for large-scale deployments.
+[IPvlan](https://docs.docker.com/engine/network/drivers/ipvlan/) supports both L2 and L3 modes. In L2 mode, pods are assigned unique IP addresses while sharing the Layer 2 Ethernet domain of the underlying physical fabricX interface. Each rail in the GPU fabric remains an independent Layer 2 broadcast domain, allowing pods on the same subnet to communicate directly through ARP without Layer 3 routing. In L3 mode, pods also receive unique IP addresses, but traffic is forwarded using Layer 3 routing via static routes or dynamic routing protocols such as BGP, providing greater scalability and network isolation. Since the current rail-only GPU fabric consists of eight independent Layer 2 domains, IPvlan L2 mode aligns naturally with the existing network architecture, making it a simple and efficient solution.
 
 To manage IP assignment on each fabricX interface, [the Whereabouts IPAM CNI](https://github.com/k8snetworkplumbingwg/whereabouts) can be used. It provides dynamic allocation of IPs from a predefined pool, ensuring each pod receives a unique address within the same subnet (corresponding to a GPU fabric rail).
 
@@ -713,19 +713,20 @@ Events:              <none>
 
 ``` bash
 # kubectl get nodes -o wide
-NAME                        STATUS   ROLES    AGE   VERSION   INTERNAL-IP   EXTERNAL-IP      OS-IMAGE                       KERNEL-VERSION        CONTAINER-RUNTIME
-rs-mn-cpu-pool-381iam       Ready    <none>   32d   v1.34.1   10.120.0.6    167.71.156.33    Debian GNU/Linux 13 (trixie)   6.12.48+deb13-amd64   containerd://1.7.28
-rs-mn-mi350x8-pool-3ckyx0   Ready    <none>   15h   v1.34.1   10.120.0.3    167.172.123.21   Debian GNU/Linux 13 (trixie)   6.12.48+deb13-amd64   containerd://1.7.28
+NAME                        STATUS   ROLES    AGE     VERSION   INTERNAL-IP   EXTERNAL-IP      OS-IMAGE                       KERNEL-VERSION    CONTAINER-RUNTIME
+rs-mn-cpu-pool-381iam       Ready    <none>   34d     v1.34.1   10.120.0.6    167.71.156.33    Debian GNU/Linux 13 (trixie)   6.12.48+deb13-amd64   containerd://1.7.28
+rs-mn-mi350x8-pool-3ckyx0   Ready    <none>   2d13h   v1.34.1   10.120.0.3    167.172.123.21   Debian GNU/Linux 13 (trixie)   6.12.48+deb13-amd64   containerd://1.7.28
+rs-mn-mi350x8-pool-3cv7zt   Ready    <none>   8m34s   v1.34.1   10.120.0.4    167.99.161.247   Debian GNU/Linux 13 (trixie)   6.12.48+deb13-amd64   containerd://1.7.28
 
 # kubectl apply -f rdma-sharing/mn-deployment-example-ipvlan-4pods-2nodes.yaml
 # kubectl delete -f rdma-sharing/mn-deployment-example-ipvlan-4pods-2nodes.yaml
 
 # kubectl get pods -o wide
-NAME                                            READY   STATUS    RESTARTS   AGE   IP            NODE                        NOMINATED NODE   READINESS GATES
-mn-deployment-example-ipvlan-56f4fbcb4b-5wkmg   1/1     Running   0          74s   10.121.4.25   rs-mn-mi350x8-pool-3ckyx0   <none>           <none>
-mn-deployment-example-ipvlan-56f4fbcb4b-9slbd   0/1     Pending   0          74s   <none>        <none>                      <none>           <none>
-mn-deployment-example-ipvlan-56f4fbcb4b-mqr88   1/1     Running   0          74s   10.121.4.66   rs-mn-mi350x8-pool-3ckyx0   <none>           <none>
-mn-deployment-example-ipvlan-56f4fbcb4b-z5v8z   0/1     Pending   0          74s   <none>        <none>                      <none>           <none>
+NAME                                            READY   STATUS    RESTARTS   AGE   IP             NODE                        NOMINATED NODE   READINESS GATES
+mn-deployment-example-ipvlan-56f4fbcb4b-5wkmg   1/1     Running   0          46h   10.121.4.25    rs-mn-mi350x8-pool-3ckyx0   <none>           <none>
+mn-deployment-example-ipvlan-56f4fbcb4b-9slbd   1/1     Running   0          46h   10.121.4.150   rs-mn-mi350x8-pool-3cv7zt   <none>           <none>
+mn-deployment-example-ipvlan-56f4fbcb4b-mqr88   1/1     Running   0          46h   10.121.4.66    rs-mn-mi350x8-pool-3ckyx0   <none>           <none>
+mn-deployment-example-ipvlan-56f4fbcb4b-z5v8z   1/1     Running   0          46h   10.121.4.210   rs-mn-mi350x8-pool-3cv7zt   <none>           <none>
 
 # 20 shares are used for each RDMA device on the DOKS worker
 # kubectl describe node rs-mn-mi325x8-pool-3c35jt
@@ -1083,6 +1084,12 @@ Instead of explicitly querying and specifying a GID index, setting NCCL_IB_GID_I
 
 When IPvlan operates in L2 mode, each fabricX interface resides in the Layer 2 broadcast domain of its parent NIC. Address resolution is performed locally within the subnet, and multiple IP addresses may map to the same MAC address because all virtual interfaces share the underlying physical RDMA NIC. Consequently, traffic between Pods on the RDMA/RoCE fabric is forwarded directly at Layer 2, eliminating the need for explicit Layer 3 routing.
 
+**Notes:** In a fully connected GPU fabric, all eight rails share the same Layer 2 broadcast domain. Consequently, the same IP-to-MAC mapping may be learned **through multiple fabricX interfaces**. This is expected behavior because each interface offers an equivalent Layer 2 path to the destination, and therefore does not inherently introduce connectivity issues.
+
+Finally, all fabricX interfaces appear in the UNKNOWN state within pods. This is expected for IPvlan interfaces in Linux, as they are virtual interfaces layered over the same underlying physical fabricX NICs and do not reflect physical link state. The UNKNOWN operstate does not indicate a fault, and end-to-end connectivity can be verified through successful ICMP communication across all fabric interfaces.
+
+Using host-device CNI, fabricX is a real host netdev moved into the pod network namespace and remains directly tied to the underlying RDMA-capable NIC, enabling the RDMA core to correlate GID entries, IP addresses, and netdevs so that rdma link can display netdev fabricX. With IPvlan CNI, fabricX is a virtual interface created within the pod namespace and multiplexed over the host NICs; although it provides correct L2/IP connectivity, it is not part of RDMA’s netdev-to-GID correlation path, so rdma link in the pod typically cannot resolve or display the netdev field. This is purely a tooling visibility limitation and does not impact RDMA functionality as long as GID/IP mappings and the underlying RDMA-capable NIC are correctly configured.
+
 <details>
 <summary>MI325x8: Within the pods</summary>
 
@@ -1107,6 +1114,16 @@ fabric5@if9      UNKNOWN        192.168.105.3/24 fe80::92e3:1700:196:e7c8/64
 fabric6@if10     UNKNOWN        192.168.106.2/24 fe80::92e3:1700:196:e228/64 
 fabric7@if11     UNKNOWN        192.168.107.2/24 fe80::92e3:1700:197:8d90/64 
 eth0@if177       UP             10.119.0.229/32 fe80::1c3b:22ff:fe92:2af5/64
+
+root@mn-deployment-example-ipvlan-56f4fbcb4b-rlxkv:/# rdma link
+link mlx5_0/1 state ACTIVE physical_state LINK_UP 
+link mlx5_1/1 state ACTIVE physical_state LINK_UP  
+link mlx5_2/1 state ACTIVE physical_state LINK_UP  
+link mlx5_3/1 state ACTIVE physical_state LINK_UP  
+link mlx5_4/1 state ACTIVE physical_state LINK_UP  
+link mlx5_5/1 state ACTIVE physical_state LINK_UP  
+link mlx5_6/1 state ACTIVE physical_state LINK_UP  
+link mlx5_7/1 state ACTIVE physical_state LINK_UP 
 
 root@mn-deployment-example-ipvlan-56f4fbcb4b-rlxkv:/# python3 rdma_mapping.py 
 {'mlx5_0': ('fabric0', 3), 'mlx5_1': ('fabric1', 3), 'mlx5_2': ('fabric2', 3), 'mlx5_3': ('fabric3', 3), 'mlx5_4': ('fabric4', 3), 'mlx5_5': ('fabric5', 3), 'mlx5_6': ('fabric6', 3), 'mlx5_7': ('fabric7', 3)}
@@ -1289,6 +1306,187 @@ root@mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj:/# ibv_devinfo -v | grep GID
 
 root@mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj:/# python3 rdma_mapping.py 
 {'mlx5_0': ('fabric0', 7), 'mlx5_1': ('fabric1', 7), 'mlx5_2': ('fabric2', 7), 'mlx5_3': ('fabric3', 7), 'mlx5_4': ('fabric4', 7), 'mlx5_5': ('fabric5', 7), 'mlx5_6': ('fabric6', 7), 'mlx5_7': ('fabric7', 7)}
+```
+
+</details>
+</br>
+
+<details>
+<summary>MI350x8: Within the pods</summary>
+
+|No| Pods                                            | eth 0                           | fabric 0~7                                                | DOKS worker
+|-| ----------------------------------------------- | ------------------------------- | ----------------------------------------------------- |-------------- |
+|1| mn-deployment-example-ipvlan-56f4fbcb4b-5wkmg   | 10.121.4.25                     | 192.168.100.2,192.168.101.2,192.168.102.2,192.168.103.2,192.168.104.2,192.168.105.2,192.168.106.2,192.168.107.2</br> | rs-mn-mi350x8-pool-3ckyx0 |
+|2| mn-deployment-example-ipvlan-56f4fbcb4b-mqr88  | 10.121.4.66                    | 192.168.100.1,192.168.101.1,192.168.102.1,192.168.103.1,192.168.104.1,192.168.105.1,192.168.106.1,192.168.107.1</br> | rs-mn-mi350x8-pool-3ckyx0 |
+|3| mn-deployment-example-ipvlan-56f4fbcb4b-9slbd   | 10.121.4.150                     | 192.168.100.4,192.168.101.4,192.168.102.4,192.168.103.3,192.168.104.3,192.168.105.3,192.168.106.3,192.168.107.3</br> | rs-mn-mi350x8-pool-3cv7zt |
+|4| mn-deployment-example-ipvlan-56f4fbcb4b-z5v8z  | 10.121.4.210                   | 192.168.100.3,192.168.101.3,192.168.102.3,192.168.103.4,192.168.104.4,192.168.105.4,192.168.106.4,192.168.107.4</br>  | rs-mn-mi350x8-pool-3cv7zt |
+
+
+**Pod 1: mn-deployment-example-ipvlan-56f4fbcb4b-5wkmg  (GID Index 3,3,3,3,3,3,3,3)**
+``` bash
+root@mn-deployment-example-ipvlan-56f4fbcb4b-5wkmg:/# ip -br a
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+fabric0@if3      UNKNOWN        192.168.100.2/24 fe80::690:8100:149:c440/64 
+fabric1@if5      UNKNOWN        192.168.101.2/24 fe80::690:8100:249:488/64 
+fabric2@if6      UNKNOWN        192.168.102.2/24 fe80::690:8100:249:18f8/64 
+fabric3@if7      UNKNOWN        192.168.103.2/24 fe80::690:8100:24a:6fb8/64 
+fabric4@if8      UNKNOWN        192.168.104.2/24 fe80::690:8100:249:85d0/64 
+fabric5@if9      UNKNOWN        192.168.105.2/24 fe80::690:8100:249:cbc0/64 
+fabric6@if10     UNKNOWN        192.168.106.2/24 fe80::690:8100:249:d280/64 
+fabric7@if11     UNKNOWN        192.168.107.2/24 fe80::690:8100:249:1eb0/64 
+eth0@if23        UP             10.121.4.25/32 fe80::34b5:b5ff:fef3:ace6/64 
+
+root@mn-deployment-example-ipvlan-56f4fbcb4b-5wkmg:/# rdma link
+link ionic_0/1 state ACTIVE physical_state LINK_UP 
+link ionic_1/1 state ACTIVE physical_state LINK_UP 
+link ionic_2/1 state ACTIVE physical_state LINK_UP 
+link ionic_3/1 state ACTIVE physical_state LINK_UP 
+link ionic_4/1 state ACTIVE physical_state LINK_UP 
+link ionic_5/1 state ACTIVE physical_state LINK_UP 
+link ionic_6/1 state ACTIVE physical_state LINK_UP 
+link ionic_7/1 state ACTIVE physical_state LINK_UP 
+
+root@mn-deployment-example-ipvlan-56f4fbcb4b-5wkmg:/# python3 rdma_mapping.py 
+{'ionic_0': ('fabric0', 3), 'ionic_1': ('fabric1', 3), 'ionic_2': ('fabric2', 3), 'ionic_3': ('fabric3', 3), 'ionic_4': ('fabric4', 3), 'ionic_5': ('fabric5', 3), 'ionic_6': ('fabric6', 3), 'ionic_7': ('fabric7', 3)}
+
+root@mn-deployment-example-ipvlan-56f4fbcb4b-5wkmg:/# ip route
+default via 10.121.4.17 dev eth0 mtu 1500 
+10.121.4.17 dev eth0 scope link 
+192.168.100.0/24 dev fabric0 proto kernel scope link src 192.168.100.2 
+192.168.101.0/24 dev fabric1 proto kernel scope link src 192.168.101.2 
+192.168.102.0/24 dev fabric2 proto kernel scope link src 192.168.102.2 
+192.168.103.0/24 dev fabric3 proto kernel scope link src 192.168.103.2 
+192.168.104.0/24 dev fabric4 proto kernel scope link src 192.168.104.2 
+192.168.105.0/24 dev fabric5 proto kernel scope link src 192.168.105.2 
+192.168.106.0/24 dev fabric6 proto kernel scope link src 192.168.106.2 
+192.168.107.0/24 dev fabric7 proto kernel scope link src 192.168.107.2 
+
+root@mn-deployment-example-ipvlan-56f4fbcb4b-5wkmg:/# for fabric in {0..7}; do
+  for pod in {1..4}; do
+    ip="192.168.10${fabric}.${pod}"
+    ping -c 1 -W 1 "$ip" >/dev/null 2>&1 && echo "OK $ip" || echo "FAIL $ip"
+  done
+done
+OK 192.168.100.1
+OK 192.168.100.2
+OK 192.168.100.3
+OK 192.168.100.4
+OK 192.168.101.1
+OK 192.168.101.2
+OK 192.168.101.3
+OK 192.168.101.4
+OK 192.168.102.1
+OK 192.168.102.2
+OK 192.168.102.3
+OK 192.168.102.4
+OK 192.168.103.1
+OK 192.168.103.2
+OK 192.168.103.3
+OK 192.168.103.4
+OK 192.168.104.1
+OK 192.168.104.2
+OK 192.168.104.3
+OK 192.168.104.4
+OK 192.168.105.1
+OK 192.168.105.2
+OK 192.168.105.3
+OK 192.168.105.4
+OK 192.168.106.1
+OK 192.168.106.2
+OK 192.168.106.3
+OK 192.168.106.4
+OK 192.168.107.1
+OK 192.168.107.2
+OK 192.168.107.3
+OK 192.168.107.4
+
+root@mn-deployment-example-ipvlan-56f4fbcb4b-5wkmg:/# arp | sort -k4
+Address                  HWtype  HWaddress           Flags Mask            Iface
+10.121.4.17              ether   0a:48:09:cc:1d:26   C                     eth0
+192.168.100.1            ether   06:90:81:49:c4:40   C                     fabric0
+192.168.100.3            ether   06:90:81:4b:e6:70   C                     fabric0
+192.168.100.4            ether   06:90:81:4b:e6:70   C                     fabric0
+192.168.101.1            ether   06:90:81:49:04:88   C                     fabric1
+192.168.101.3            ether   06:90:81:4b:ca:20   C                     fabric1
+192.168.101.4            ether   06:90:81:4b:ca:20   C                     fabric1
+192.168.102.1            ether   06:90:81:49:18:f8   C                     fabric2
+192.168.102.3            ether   06:90:81:4c:1a:90   C                     fabric2
+192.168.102.4            ether   06:90:81:4c:1a:90   C                     fabric2
+192.168.103.1            ether   06:90:81:4a:6f:b8   C                     fabric3
+192.168.103.3            ether   06:90:81:4b:fc:78   C                     fabric3
+192.168.103.4            ether   06:90:81:4b:fc:78   C                     fabric3
+192.168.104.1            ether   06:90:81:49:85:d0   C                     fabric4
+192.168.104.3            ether   06:90:81:4c:17:90   C                     fabric4
+192.168.104.4            ether   06:90:81:4c:17:90   C                     fabric4
+192.168.105.1            ether   06:90:81:49:cb:c0   C                     fabric5
+192.168.105.3            ether   06:90:81:4c:0f:98   C                     fabric5
+192.168.105.4            ether   06:90:81:4c:0f:98   C                     fabric5
+192.168.106.1            ether   06:90:81:49:d2:80   C                     fabric6
+192.168.106.3            ether   06:90:81:4c:16:10   C                     fabric6
+192.168.106.4            ether   06:90:81:4c:16:10   C                     fabric6
+192.168.107.1            ether   06:90:81:49:1e:b0   C                     fabric7
+192.168.107.3            ether   06:90:81:4b:f5:10   C                     fabric7
+192.168.107.4            ether   06:90:81:4b:f5:10   C                     fabric7
+```
+
+**Pod 2: mn-deployment-example-ipvlan-56f4fbcb4b-mqr88  (GID Index 1,1,1,1,1,1,1,1)**
+``` bash
+root@mn-deployment-example-ipvlan-56f4fbcb4b-mqr88:/# ip -br a
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+fabric0@if3      UNKNOWN        192.168.100.1/24 fe80::690:8100:249:c440/64 
+fabric1@if5      UNKNOWN        192.168.101.1/24 fe80::690:8100:149:488/64 
+fabric2@if6      UNKNOWN        192.168.102.1/24 fe80::690:8100:149:18f8/64 
+fabric3@if7      UNKNOWN        192.168.103.1/24 fe80::690:8100:14a:6fb8/64 
+fabric4@if8      UNKNOWN        192.168.104.1/24 fe80::690:8100:149:85d0/64 
+fabric5@if9      UNKNOWN        192.168.105.1/24 fe80::690:8100:149:cbc0/64 
+fabric6@if10     UNKNOWN        192.168.106.1/24 fe80::690:8100:149:d280/64 
+fabric7@if11     UNKNOWN        192.168.107.1/24 fe80::690:8100:149:1eb0/64 
+eth0@if25        UP             10.121.4.66/32 fe80::f46b:56ff:fef3:4dc4/64 
+
+root@mn-deployment-example-ipvlan-56f4fbcb4b-mqr88:/# ibv_devinfo -v | grep GID
+			GID[  0]:		fe80::490:81ff:fe49:c440, RoCE v2
+			GID[  1]:		::ffff:192.168.100.1, RoCE v2     # GID 1  
+			GID[  2]:		fe80::690:8100:249:c440, RoCE v2
+			GID[  3]:		::ffff:192.168.100.2, RoCE v2     # GID 3  
+			GID[  4]:		fe80::690:8100:149:c440, RoCE v2
+			GID[  0]:		fe80::490:81ff:fe49:488, RoCE v2
+			GID[  1]:		::ffff:192.168.101.1, RoCE v2
+			GID[  2]:		fe80::690:8100:149:488, RoCE v2
+			GID[  3]:		::ffff:192.168.101.2, RoCE v2
+			GID[  4]:		fe80::690:8100:249:488, RoCE v2
+			GID[  0]:		fe80::490:81ff:fe49:18f8, RoCE v2
+			GID[  1]:		::ffff:192.168.102.1, RoCE v2
+			GID[  2]:		fe80::690:8100:149:18f8, RoCE v2
+			GID[  3]:		::ffff:192.168.102.2, RoCE v2
+			GID[  4]:		fe80::690:8100:249:18f8, RoCE v2
+			GID[  0]:		fe80::490:81ff:fe4a:6fb8, RoCE v2
+			GID[  1]:		::ffff:192.168.103.1, RoCE v2
+			GID[  2]:		fe80::690:8100:14a:6fb8, RoCE v2
+			GID[  3]:		::ffff:192.168.103.2, RoCE v2
+			GID[  4]:		fe80::690:8100:24a:6fb8, RoCE v2
+			GID[  0]:		fe80::490:81ff:fe49:85d0, RoCE v2
+			GID[  1]:		::ffff:192.168.104.1, RoCE v2
+			GID[  2]:		fe80::690:8100:149:85d0, RoCE v2
+			GID[  3]:		::ffff:192.168.104.2, RoCE v2
+			GID[  4]:		fe80::690:8100:249:85d0, RoCE v2
+			GID[  0]:		fe80::490:81ff:fe49:cbc0, RoCE v2
+			GID[  1]:		::ffff:192.168.105.1, RoCE v2
+			GID[  2]:		fe80::690:8100:149:cbc0, RoCE v2
+			GID[  3]:		::ffff:192.168.105.2, RoCE v2
+			GID[  4]:		fe80::690:8100:249:cbc0, RoCE v2
+			GID[  0]:		fe80::490:81ff:fe49:d280, RoCE v2
+			GID[  1]:		::ffff:192.168.106.1, RoCE v2
+			GID[  2]:		fe80::690:8100:149:d280, RoCE v2
+			GID[  3]:		::ffff:192.168.106.2, RoCE v2
+			GID[  4]:		fe80::690:8100:249:d280, RoCE v2
+			GID[  0]:		fe80::490:81ff:fe49:1eb0, RoCE v2
+			GID[  1]:		::ffff:192.168.107.1, RoCE v2
+			GID[  2]:		fe80::690:8100:149:1eb0, RoCE v2
+			GID[  3]:		::ffff:192.168.107.2, RoCE v2
+			GID[  4]:		fe80::690:8100:249:1eb0, RoCE v2
+
+root@mn-deployment-example-ipvlan-56f4fbcb4b-mqr88:/# python3 rdma_mapping.py 
+{'ionic_0': ('fabric0', 1), 'ionic_1': ('fabric1', 1), 'ionic_2': ('fabric2', 1), 'ionic_3': ('fabric3', 1), 'ionic_4': ('fabric4', 1), 'ionic_5': ('fabric5', 1), 'ionic_6': ('fabric6', 1), 'ionic_7': ('fabric7', 1)}
 ```
 
 </details>
