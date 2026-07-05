@@ -1629,7 +1629,7 @@ root@mn-deployment-example-ipvlan-56f4fbcb4b-4s6rj:/#
 </br>
 
 <details>
-<summary>MI350: RDMA Resource Sharing Across Applications</summary>
+<summary>MI350x8: RDMA Resource Sharing Across Applications</summary>
 
 |No| Pods                                                 | eth 0                           | GID indexes based on the 1st IP          | DOKS worker |
 |-| ------------------------------------------------------| ------------------------------- | -----------------| ------------------------------------ |
