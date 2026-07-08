@@ -130,6 +130,24 @@ kubectl get nodes
 kubectl describe node NODE_NAME | grep fabric
 ```
 
+The RDMA device plugin can also allocate a subset of the available RDMA devices to a pod. For example, if only **rdma/fabric0** and **rdma/fabric1** are specified in [the pod's resources.requests and resources.limits](rdma-sharing/rccl-test-2-nodes-mi325x8-ipvlan.yaml#L160), the plugin allocates only those two RDMA fabrics (mlx5_0 and mlx5_1 on MI325x8) and mounts the corresponding RDMA device interface files into the pod. The remaining RDMA devices are not exposed to the pod and cannot be accessed by applications running inside the pod.
+
+``` bash
+# ls /dev/infiniband/ -ls
+total 0
+0 crw-rw-rw- 1 root root  10, 121 Jul  8 23:31 rdma_cm
+0 crw------- 1 root root 231,   0 Jul  8 23:31 umad0
+0 crw------- 1 root root 231,   1 Jul  8 23:31 umad1
+0 crw-rw-rw- 1 root root 231, 192 Jul  8 23:31 uverbs0
+0 crw-rw-rw- 1 root root 231, 193 Jul  8 23:31 uverbs1
+
+# ibv_devices
+    device          	   node GUID
+    ------          	----------------
+    mlx5_0          	92e317fffe978748
+    mlx5_1          	92e317fffe96e7b8
+```
+
 The Ethernet interfaces, such as fabric0 for mlx5_0, are also required for RDMA/RoCE applications during connection establishment, as they carry essential network configuration such as IP addresses, MTU, and routing information. Once the RDMA connection (Queue Pair) is established, data transfer occurs directly through the NIC’s RDMA data path, bypassing the kernel networking stack.
 
 <img src="rdma-sharing/two_stacks.png" alt="GPU Network" width="800" height="500"/>
