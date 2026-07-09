@@ -196,7 +196,7 @@ deployment.apps/whereabouts-reconciler created
 # kubectl -n kube-system describe daemonset whereabouts
 ```
 
-### Step 3 - iplvan CNI
+### Step 3 - ipvlan CNI
 
 The ipvlan CNI plugin is preinstalled in DOKS workers:
 
