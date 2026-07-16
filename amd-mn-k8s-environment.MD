@@ -64,7 +64,7 @@ Provision a DOKS cluster with 1 CPU worker and 2 MI350x8 workers using doctl:
 
 ``` bash
 doctl vpcs list
-doctl compute size list | grep gpu 
+doctl compute size list | grep cpu 
 doctl compute size list | grep gpu 
 doctl kubernetes cluster list
 
