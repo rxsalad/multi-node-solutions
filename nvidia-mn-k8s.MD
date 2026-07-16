@@ -1,0 +1,1663 @@
+# Multi-Node Environment Setup and Testing for DOKS with NVIDIA GPUs
+
+This document provides a step-by-step guide for setting up a multi-node DOKS environment with NVIDIA B300x8 GPU nodes, configuring RDMA sharing using the Multus CNI and ipvlan CNI, and running the validation tests.
+
+For background information on the underlying concepts and theory, please refer to[amd-mn-k8s-environment](https://github.com/rxsalad/multi-node-solutions/blob/main/amd-mn-k8s-environment.MD) and [amd-mn-k8s-rdma-sharing.MD](https://github.com/rxsalad/multi-node-solutions/blob/main/amd-mn-k8s-rdma-sharing.MD).
+
+The key difference is that AMD MI325x8 or MI350x8 clusters provide 8 rails in the GPU fabric, whereas NVIDIA B300x8 clusters provide 16 rails. As a result, the RDMA/RoCE configuration differs between the two platforms.
+
+## Environment Setup 
+
+Ensure that your team account has at least two B300x8 nodes available within the same GPU Fabric. Create a DOKS cluster with one CPU worker and three B300 x8 GPU workers using doctl as follows:
+
+``` bash
+doctl vpcs list
+doctl compute size list | grep gpu 
+doctl compute size list | grep gpu 
+doctl kubernetes cluster list
+
+# Use a fabric-enabled size; otherwise, RDMA/RoCE will not be enabled.
+doctl kubernetes cluster create rs-nvidia-rdma-sharing \
+  --region mkc1 \
+  --version 1.36.0-do.1 \
+  --node-pool "name=rs-mn-cpu-pool;size=s-4vcpu-16gb-320gb-intel;count=1" \
+  --node-pool "name=rs-mn-b300x8-pool;size=gpu-b300x8-2304gb-lc-fabric-contracted;count=3" \
+  --tag "rs-test"
+
+doctl kubernetes cluster get rs-nvidia-rdma-sharing -o json
+doctl kubernetes cluster delete rs-nvidia-rdma-sharing
+``` 
+
+The 4 workers have been created and are now managed by DOKS.
+
+``` bash
+# doctl compute droplet list
+
+584880375    rs-mn-cpu-pool-37ylkn                     165.245.199.211    10.132.0.6                                      16384      4        320     mkc1      Debian do-kube-1.36.0-do.2               7ab3c1c0-364c-43cc-a708-e757dec1376f    active    k8s,k8s:9df54065-3aa8-4067-bbdd-b6814352af5d,k8s:worker    private_networking                                  
+584880376    rs-mn-b300x8-pool-37ylk3                  165.245.199.217    10.132.0.7                                      3670016    224      2046    mkc1      Debian do-kube-1.36.0-do.2-gpu-nvidia    7ab3c1c0-364c-43cc-a708-e757dec1376f    active    k8s,k8s:9df54065-3aa8-4067-bbdd-b6814352af5d,k8s:worker    droplet_agent,private_networking                    
+584880377    rs-mn-b300x8-pool-37ylk8                  165.245.199.203    10.132.0.5                                      3670016    224      2046    mkc1      Debian do-kube-1.36.0-do.2-gpu-nvidia    7ab3c1c0-364c-43cc-a708-e757dec1376f    active    k8s,k8s:9df54065-3aa8-4067-bbdd-b6814352af5d,k8s:worker    droplet_agent,private_networking                    
+584880378    rs-mn-b300x8-pool-37ylku                  165.245.199.226    10.132.0.8                                      3670016    224      2046    mkc1      Debian do-kube-1.36.0-do.2-gpu-nvidia    7ab3c1c0-364c-43cc-a708-e757dec1376f    active    k8s,k8s:9df54065-3aa8-4067-bbdd-b6814352af5d,k8s:worker    droplet_agent,private_networking  
+```
+
+## DOKS Worker Check (Host OS)
+
+<details>
+<summary>B300x8</summary>
+
+``` bash
+# uname -r
+6.12.94+deb13-amd64
+
+# cat /etc/os-release
+PRETTY_NAME="Debian GNU/Linux 13 (trixie)"
+NAME="Debian GNU/Linux"
+VERSION_ID="13"
+VERSION="13 (trixie)"
+VERSION_CODENAME=trixie
+DEBIAN_VERSION_FULL=13.5
+ID=debian
+HOME_URL="https://www.debian.org/"
+SUPPORT_URL="https://www.debian.org/support"
+BUG_REPORT_URL="https://bugs.debian.org/"
+
+# dkms status
+mlnx-ofed-kernel/26.01.OFED.26.01.1.0.0.1, 6.12.94+deb13-amd64, x86_64: installed (Original modules exist)
+nvidia/590.48.01, 6.12.94+deb13-amd64, x86_64: installed
+
+# nvidia-smi 
+Wed Jul 15 21:57:39 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 590.48.01              Driver Version: 590.48.01      CUDA Version: 13.1     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA B300 SXM6 PC            On  |   00000000:85:00.0 Off |                    0 |
+| N/A   29C    P0            234W / 1100W |       0MiB / 275040MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA B300 SXM6 PC            On  |   00000000:8D:00.0 Off |                    0 |
+| N/A   29C    P0            238W / 1100W |       0MiB / 275040MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA B300 SXM6 PC            On  |   00000000:95:00.0 Off |                    0 |
+| N/A   29C    P0            238W / 1100W |       0MiB / 275040MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA B300 SXM6 PC            On  |   00000000:9D:00.0 Off |                    0 |
+| N/A   28C    P0            236W / 1100W |       0MiB / 275040MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA B300 SXM6 PC            On  |   00000000:A5:00.0 Off |                    0 |
+| N/A   28C    P0            234W / 1100W |       0MiB / 275040MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA B300 SXM6 PC            On  |   00000000:AD:00.0 Off |                    0 |
+| N/A   27C    P0            183W / 1100W |       0MiB / 275040MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA B300 SXM6 PC            On  |   00000000:B5:00.0 Off |                    0 |
+| N/A   27C    P0            182W / 1100W |       0MiB / 275040MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA B300 SXM6 PC            On  |   00000000:BD:00.0 Off |                    0 |
+| N/A   27C    P0            182W / 1100W |       0MiB / 275040MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+
+# nvidia-smi topo -m
+        GPU0    GPU1    GPU2    GPU3    GPU4    GPU5    GPU6    GPU7    NIC0    NIC1    NIC2    NIC3    NIC4    NIC5    NIC6NIC7     NIC8    NIC9    NIC10   NIC11   NIC12   NIC13   NIC14   NIC15   CPU Affinity    NUMA Affinity   GPU NUMA ID
+GPU0     X      NV18    NV18    NV18    NV18    NV18    NV18    NV18    PXB     PXB     NODE    NODE    NODE    NODE    NODENODE     SYS     SYS     SYS     SYS     SYS     SYS     SYS     SYS     0-111   0               N/A
+GPU1    NV18     X      NV18    NV18    NV18    NV18    NV18    NV18    NODE    NODE    PXB     PXB     NODE    NODE    NODENODE     SYS     SYS     SYS     SYS     SYS     SYS     SYS     SYS     0-111   0               N/A
+GPU2    NV18    NV18     X      NV18    NV18    NV18    NV18    NV18    NODE    NODE    NODE    NODE    PXB     PXB     NODENODE     SYS     SYS     SYS     SYS     SYS     SYS     SYS     SYS     0-111   0               N/A
+GPU3    NV18    NV18    NV18     X      NV18    NV18    NV18    NV18    NODE    NODE    NODE    NODE    NODE    NODE    PXB PXB      SYS     SYS     SYS     SYS     SYS     SYS     SYS     SYS     0-111   0               N/A
+GPU4    NV18    NV18    NV18    NV18     X      NV18    NV18    NV18    SYS     SYS     SYS     SYS     SYS     SYS     SYS SYS      PXB     PXB     NODE    NODE    NODE    NODE    NODE    NODE    112-223 1               N/A
+GPU5    NV18    NV18    NV18    NV18    NV18     X      NV18    NV18    SYS     SYS     SYS     SYS     SYS     SYS     SYS SYS      NODE    NODE    PXB     PXB     NODE    NODE    NODE    NODE    112-223 1               N/A
+GPU6    NV18    NV18    NV18    NV18    NV18    NV18     X      NV18    SYS     SYS     SYS     SYS     SYS     SYS     SYS SYS      NODE    NODE    NODE    NODE    PXB     PXB     NODE    NODE    112-223 1               N/A
+GPU7    NV18    NV18    NV18    NV18    NV18    NV18    NV18     X      SYS     SYS     SYS     SYS     SYS     SYS     SYS SYS      NODE    NODE    NODE    NODE    NODE    NODE    PXB     PXB     112-223 1               N/A
+NIC0    PXB     NODE    NODE    NODE    SYS     SYS     SYS     SYS      X      PIX     NODE    NODE    NODE    NODE    NODENODE     SYS     SYS     SYS     SYS     SYS     SYS     SYS     SYS
+NIC1    PXB     NODE    NODE    NODE    SYS     SYS     SYS     SYS     PIX      X      NODE    NODE    NODE    NODE    NODENODE     SYS     SYS     SYS     SYS     SYS     SYS     SYS     SYS
+NIC2    NODE    PXB     NODE    NODE    SYS     SYS     SYS     SYS     NODE    NODE     X      PIX     NODE    NODE    NODENODE     SYS     SYS     SYS     SYS     SYS     SYS     SYS     SYS
+NIC3    NODE    PXB     NODE    NODE    SYS     SYS     SYS     SYS     NODE    NODE    PIX      X      NODE    NODE    NODENODE     SYS     SYS     SYS     SYS     SYS     SYS     SYS     SYS
+NIC4    NODE    NODE    PXB     NODE    SYS     SYS     SYS     SYS     NODE    NODE    NODE    NODE     X      PIX     NODENODE     SYS     SYS     SYS     SYS     SYS     SYS     SYS     SYS
+NIC5    NODE    NODE    PXB     NODE    SYS     SYS     SYS     SYS     NODE    NODE    NODE    NODE    PIX      X      NODENODE     SYS     SYS     SYS     SYS     SYS     SYS     SYS     SYS
+NIC6    NODE    NODE    NODE    PXB     SYS     SYS     SYS     SYS     NODE    NODE    NODE    NODE    NODE    NODE     X  PIX      SYS     SYS     SYS     SYS     SYS     SYS     SYS     SYS
+NIC7    NODE    NODE    NODE    PXB     SYS     SYS     SYS     SYS     NODE    NODE    NODE    NODE    NODE    NODE    PIX  X       SYS     SYS     SYS     SYS     SYS     SYS     SYS     SYS
+NIC8    SYS     SYS     SYS     SYS     PXB     NODE    NODE    NODE    SYS     SYS     SYS     SYS     SYS     SYS     SYS SYS       X      PIX     NODE    NODE    NODE    NODE    NODE    NODE
+NIC9    SYS     SYS     SYS     SYS     PXB     NODE    NODE    NODE    SYS     SYS     SYS     SYS     SYS     SYS     SYS SYS      PIX      X      NODE    NODE    NODE    NODE    NODE    NODE
+NIC10   SYS     SYS     SYS     SYS     NODE    PXB     NODE    NODE    SYS     SYS     SYS     SYS     SYS     SYS     SYS SYS      NODE    NODE     X      PIX     NODE    NODE    NODE    NODE
+NIC11   SYS     SYS     SYS     SYS     NODE    PXB     NODE    NODE    SYS     SYS     SYS     SYS     SYS     SYS     SYS SYS      NODE    NODE    PIX      X      NODE    NODE    NODE    NODE
+NIC12   SYS     SYS     SYS     SYS     NODE    NODE    PXB     NODE    SYS     SYS     SYS     SYS     SYS     SYS     SYS SYS      NODE    NODE    NODE    NODE     X      PIX     NODE    NODE
+NIC13   SYS     SYS     SYS     SYS     NODE    NODE    PXB     NODE    SYS     SYS     SYS     SYS     SYS     SYS     SYS SYS      NODE    NODE    NODE    NODE    PIX      X      NODE    NODE
+NIC14   SYS     SYS     SYS     SYS     NODE    NODE    NODE    PXB     SYS     SYS     SYS     SYS     SYS     SYS     SYS SYS      NODE    NODE    NODE    NODE    NODE    NODE     X      PIX
+NIC15   SYS     SYS     SYS     SYS     NODE    NODE    NODE    PXB     SYS     SYS     SYS     SYS     SYS     SYS     SYS SYS      NODE    NODE    NODE    NODE    NODE    NODE    PIX      X 
+
+Legend:
+
+  X    = Self
+  SYS  = Connection traversing PCIe as well as the SMP interconnect between NUMA nodes (e.g., QPI/UPI)
+  NODE = Connection traversing PCIe as well as the interconnect between PCIe Host Bridges within a NUMA node
+  PHB  = Connection traversing PCIe as well as a PCIe Host Bridge (typically the CPU)
+  PXB  = Connection traversing multiple PCIe bridges (without traversing the PCIe Host Bridge)
+  PIX  = Connection traversing at most a single PCIe bridge
+  NV#  = Connection traversing a bonded set of # NVLinks
+
+NIC Legend:
+
+  NIC0: mlx5_0
+  NIC1: mlx5_1
+  NIC2: mlx5_2
+  NIC3: mlx5_3
+  NIC4: mlx5_4
+  NIC5: mlx5_5
+  NIC6: mlx5_6
+  NIC7: mlx5_7
+  NIC8: mlx5_8
+  NIC9: mlx5_9
+  NIC10: mlx5_10
+  NIC11: mlx5_11
+  NIC12: mlx5_12
+  NIC13: mlx5_13
+  NIC14: mlx5_14
+  NIC15: mlx5_15
+
+# ls /sys/class/infiniband/
+mlx5_0  mlx5_10  mlx5_12  mlx5_14  mlx5_16  mlx5_18  mlx5_2  mlx5_4  mlx5_6  mlx5_8
+mlx5_1  mlx5_11  mlx5_13  mlx5_15  mlx5_17  mlx5_19  mlx5_3  mlx5_5  mlx5_7  mlx5_9
+
+# ibv_devices
+    device                 node GUID
+    ------              ----------------
+    mlx5_0              ae3ae2fffebc9132
+    mlx5_1              ae3ae2fffebc9133
+    mlx5_2              ae3ae2fffebc9152
+    mlx5_3              ae3ae2fffebc9153
+    mlx5_4              ae3ae2fffebc9162
+    mlx5_5              ae3ae2fffebc9163
+    mlx5_6              ae3ae2fffebc9142
+    mlx5_7              ae3ae2fffebc9143
+    mlx5_8              ae3ae2fffebc91a2
+    mlx5_9              ae3ae2fffebc91a3
+    mlx5_10             ae3ae2fffebc9182
+    mlx5_11             ae3ae2fffebc9183
+    mlx5_12             ae3ae2fffebc9172
+    mlx5_13             ae3ae2fffebc9173
+    mlx5_14             ae3ae2fffebc9192
+    mlx5_15             ae3ae2fffebc9193
+    mlx5_16             ac3ae20300bc912e
+    mlx5_17             ac3ae20300bc912f
+    mlx5_18             ac3ae20300bc9130
+    mlx5_19             ac3ae20300bc9131
+
+# ip -br a | grep fabric
+fabric0          UP             fe80::ac3a:e2ff:febc:9132/64 
+fabric1          UP             fe80::ac3a:e2ff:febc:9133/64 
+fabric2          UP             fe80::ac3a:e2ff:febc:9152/64 
+fabric3          UP             fe80::ac3a:e2ff:febc:9153/64 
+fabric4          UP             fe80::ac3a:e2ff:febc:9162/64 
+fabric5          UP             fe80::ac3a:e2ff:febc:9163/64 
+fabric6          UP             fe80::ac3a:e2ff:febc:9142/64 
+fabric7          UP             fe80::ac3a:e2ff:febc:9143/64 
+fabric8          UP             fe80::ac3a:e2ff:febc:91a2/64 
+fabric9          UP             fe80::ac3a:e2ff:febc:91a3/64 
+fabric10         UP             fe80::ac3a:e2ff:febc:9182/64 
+fabric11         UP             fe80::ac3a:e2ff:febc:9183/64 
+fabric12         UP             fe80::ac3a:e2ff:febc:9172/64 
+fabric13         UP             fe80::ac3a:e2ff:febc:9173/64 
+fabric14         UP             fe80::ac3a:e2ff:febc:9192/64 
+fabric15         UP             fe80::ac3a:e2ff:febc:9193/64 
+
+# ibv_devinfo -v | grep GID
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9132, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9132, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9133, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9133, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9152, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9152, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9153, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9153, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9162, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9162, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9163, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9163, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9142, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9142, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9143, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9143, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:91a2, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:91a2, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:91a3, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:91a3, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9182, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9182, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9183, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9183, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9172, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9172, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9173, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9173, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9192, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9192, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9193, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9193, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e203:00bc:912e
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e203:00bc:912f
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e203:00bc:9130
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e203:00bc:9131
+
+# rdma link
+link mlx5_0/1 state ACTIVE physical_state LINK_UP netdev fabric0 
+link mlx5_1/1 state ACTIVE physical_state LINK_UP netdev fabric1 
+link mlx5_2/1 state ACTIVE physical_state LINK_UP netdev fabric2 
+link mlx5_3/1 state ACTIVE physical_state LINK_UP netdev fabric3 
+link mlx5_4/1 state ACTIVE physical_state LINK_UP netdev fabric4 
+link mlx5_5/1 state ACTIVE physical_state LINK_UP netdev fabric5 
+link mlx5_6/1 state ACTIVE physical_state LINK_UP netdev fabric6 
+link mlx5_7/1 state ACTIVE physical_state LINK_UP netdev fabric7 
+link mlx5_8/1 state ACTIVE physical_state LINK_UP netdev fabric8 
+link mlx5_9/1 state ACTIVE physical_state LINK_UP netdev fabric9 
+link mlx5_10/1 state ACTIVE physical_state LINK_UP netdev fabric10 
+link mlx5_11/1 state ACTIVE physical_state LINK_UP netdev fabric11 
+link mlx5_12/1 state ACTIVE physical_state LINK_UP netdev fabric12 
+link mlx5_13/1 state ACTIVE physical_state LINK_UP netdev fabric13 
+link mlx5_14/1 state ACTIVE physical_state LINK_UP netdev fabric14 
+link mlx5_15/1 state ACTIVE physical_state LINK_UP netdev fabric15 
+link mlx5_16/1 subnet_prefix fe80:0000:0000:0000 lid 1 sm_lid 1 lmc 0 state ACTIVE physical_state LINK_UP 
+link mlx5_17/1 subnet_prefix fe80:0000:0000:0000 lid 3 sm_lid 1 lmc 0 state ACTIVE physical_state LINK_UP 
+link mlx5_18/1 subnet_prefix fe80:0000:0000:0000 lid 6 sm_lid 1 lmc 0 state ACTIVE physical_state LINK_UP 
+link mlx5_19/1 subnet_prefix fe80:0000:0000:0000 lid 5 sm_lid 1 lmc 0 state ACTIVE physical_state LINK_UP                        
+```
+
+</details>
+
+## DOKS Cluster Check
+
+### Basic Cluster Check
+
+Perform the following checks to verify the health and readiness of the DOKS cluster:
+
+<details>
+<summary>DOKS Cluster</summary>
+
+``` bash
+# kubectl get nodes -o wide
+NAME                       STATUS   ROLES    AGE     VERSION   INTERNAL-IP   EXTERNAL-IP       OS-IMAGE                       KERNEL-VERSION                CONTAINER-RUNTIME
+rs-mn-b300x8-pool-37ylk3   Ready    <none>   3h52m   v1.36.0   10.132.0.7    165.245.199.217   Debian GNU/Linux 13 (trixie)   6.12.94+deb13-amd64 (amd64)   containerd://2.2.3
+rs-mn-b300x8-pool-37ylk8   Ready    <none>   3h52m   v1.36.0   10.132.0.5    165.245.199.203   Debian GNU/Linux 13 (trixie)   6.12.94+deb13-amd64 (amd64)   containerd://2.2.3
+rs-mn-b300x8-pool-37ylku   Ready    <none>   3h52m   v1.36.0   10.132.0.8    165.245.199.226   Debian GNU/Linux 13 (trixie)   6.12.94+deb13-amd64 (amd64)   containerd://2.2.3
+rs-mn-cpu-pool-37ylkn      Ready    <none>   4h7m    v1.36.0   10.132.0.6    165.245.199.211   Debian GNU/Linux 13 (trixie)   6.12.94+deb13-amd64 (amd64)   containerd://2.2.3
+
+# kubectl get daemonset -ALL
+NAMESPACE     NAME                                        DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR                                                                                                  AGE    L
+kube-system   cilium                                      4         4         4       4            4           kubernetes.io/os=linux                                                                                         4h8m   
+kube-system   csi-do-node                                 4         4         4       4            4           kubernetes.io/os=linux                                                                                         4h4m   
+kube-system   do-node-agent                               1         1         1       1            1           kubernetes.io/os=linux                                                                                         4h3m   
+kube-system   do-node-agent-amd-device-metrics-exporter   0         0         0       0            0           doks.digitalocean.com/gpu-brand=amd,kubernetes.io/os=linux                                                     4h3m   
+kube-system   do-node-agent-nvidia-dcgm-exporter          3         3         3       3            3           doks.digitalocean.com/gpu-brand=nvidia,doks.digitalocean.com/nvidia-dcgm-enabled=true,kubernetes.io/os=linux   4h3m   
+kube-system   doks-telemetry-config-reloader              4         4         4       4            4           kubernetes.io/os=linux                                                                                         4h9m   
+kube-system   k8s-nvidia-device-plugin                    3         3         3       3            3           doks.digitalocean.com/gpu-brand=nvidia,kubernetes.io/os=linux                                                  4h3m   
+kube-system   rdma-shared-dp-ds                           3         3         3       3            3           doks.digitalocean.com/is-gpu-fabric-connected=true,kubernetes.io/os=linux                                      4h3m   
+
+# kubectl get pods -ALL
+NAMESPACE     NAME                                       READY   STATUS    RESTARTS       AGE     L
+kube-system   cilium-2lrcg                               2/2     Running   0              3h53m   
+kube-system   cilium-gxdgd                               2/2     Running   0              4h8m    
+kube-system   cilium-v8f5b                               2/2     Running   0              3h53m   
+kube-system   cilium-z5gbc                               2/2     Running   0              3h53m   
+kube-system   coredns-869c9f5ffb-9b6lp                   1/1     Running   0              3h53m   
+kube-system   coredns-869c9f5ffb-bmxx9                   1/1     Running   0              4h7m    
+kube-system   coredns-869c9f5ffb-qlnkn                   1/1     Running   0              3h53m   
+kube-system   csi-do-node-75rgk                          2/2     Running   0              3h53m   
+kube-system   csi-do-node-gvh7q                          2/2     Running   0              3h53m   
+kube-system   csi-do-node-hr7vp                          2/2     Running   0              3h53m   
+kube-system   csi-do-node-zhk9l                          2/2     Running   0              4h4m    
+kube-system   do-node-agent-59v6j                        1/1     Running   0              4h4m    
+kube-system   do-node-agent-nvidia-dcgm-exporter-4xjdt   3/3     Running   0              3h53m   
+kube-system   do-node-agent-nvidia-dcgm-exporter-hw4tq   3/3     Running   0              3h53m   
+kube-system   do-node-agent-nvidia-dcgm-exporter-jh22c   3/3     Running   0              3h53m   
+kube-system   doks-telemetry-config-reloader-4dksr       1/1     Running   0              3h53m   
+kube-system   doks-telemetry-config-reloader-fb648       1/1     Running   0              4h8m    
+kube-system   doks-telemetry-config-reloader-knk82       1/1     Running   0              3h53m   
+kube-system   doks-telemetry-config-reloader-kx2jf       1/1     Running   0              3h53m   
+kube-system   hubble-relay-64b8659f77-f5vhp              1/1     Running   1 (4h5m ago)   4h9m    
+kube-system   hubble-ui-5bb8b9bd74-8cwwt                 2/2     Running   0              4h9m    
+kube-system   k8s-nvidia-device-plugin-8kslh             1/1     Running   0              3h53m   
+kube-system   k8s-nvidia-device-plugin-d9d6t             1/1     Running   0              3h53m   
+kube-system   k8s-nvidia-device-plugin-gkrl5             1/1     Running   0              3h53m   
+kube-system   konnectivity-agent-78597f974f-q2mkd        1/1     Running   0              4h9m    
+kube-system   konnectivity-agent-78597f974f-xdtdt        1/1     Running   0              4h9m    
+kube-system   rdma-shared-dp-ds-24pf8                    1/1     Running   0              3h53m   
+kube-system   rdma-shared-dp-ds-fvqsw                    1/1     Running   0              3h53m   
+kube-system   rdma-shared-dp-ds-h5zgb                    1/1     Running   0              3h53m  
+```
+
+</details>
+
+### Managed GPU Droplets
+
+Perform the following checks on DOKS workers:
+
+<details>
+<summary>B300x8</summary>
+
+``` bash
+# kubectl describe node rs-mn-b300x8-pool-37ylku
+Name:               rs-mn-b300x8-pool-37ylku
+Roles:              <none>
+Labels:             beta.kubernetes.io/arch=amd64
+                    beta.kubernetes.io/instance-type=gpu-b300x8-2304gb-lc-fabric-contracted
+                    beta.kubernetes.io/os=linux
+                    doks.digitalocean.com/gpu-brand=nvidia
+                    doks.digitalocean.com/gpu-model=b300
+                    doks.digitalocean.com/is-gpu-fabric-connected=true
+                    doks.digitalocean.com/managed=true
+                    doks.digitalocean.com/node-id=1fe11d5e-dd76-4c03-9e98-00711f742baa
+                    doks.digitalocean.com/node-pool=rs-mn-b300x8-pool
+                    doks.digitalocean.com/node-pool-id=512834ce-cb3d-4922-9fee-91fdd4ec92cc
+                    doks.digitalocean.com/nvidia-dcgm-enabled=true
+                    doks.digitalocean.com/version=1.36.0-do.2
+                    failure-domain.beta.kubernetes.io/region=mkc1
+                    kubernetes.io/arch=amd64
+                    kubernetes.io/hostname=rs-mn-b300x8-pool-37ylku
+                    kubernetes.io/os=linux
+                    node.kubernetes.io/instance-type=gpu-b300x8-2304gb-lc-fabric-contracted
+                    nvidia.com/gpu=8
+                    region=mkc1
+                    topology.kubernetes.io/region=mkc1
+Annotations:        alpha.kubernetes.io/provided-node-ip: 10.132.0.8
+                    csi.volume.kubernetes.io/nodeid: {"dobs.csi.digitalocean.com":"584880378"}
+                    network.cilium.io/ipv4-Ingress-ip: 10.151.1.40
+                    network.cilium.io/ipv4-cilium-host: 10.151.1.62
+                    network.cilium.io/ipv4-health-ip: 10.151.1.11
+                    network.cilium.io/ipv4-pod-cidr: 10.151.1.0/25
+                    node.alpha.kubernetes.io/ttl: 0
+                    volumes.kubernetes.io/controller-managed-attach-detach: true
+CreationTimestamp:  Wed, 15 Jul 2026 18:12:03 +0000
+Taints:             nvidia.com/gpu:NoSchedule
+Unschedulable:      false
+Lease:
+  HolderIdentity:  rs-mn-b300x8-pool-37ylku
+  AcquireTime:     <unset>
+  RenewTime:       Wed, 15 Jul 2026 22:08:51 +0000
+Conditions:
+  Type                                  Status  LastHeartbeatTime                 LastTransitionTime                Reason                       Message
+  ----                                  ------  -----------------                 ------------------                ------                       -------
+  NetworkUnavailable                    False   Wed, 15 Jul 2026 18:12:29 +0000   Wed, 15 Jul 2026 18:12:29 +0000   CiliumIsUp                   Cilium is running on this node
+  MemoryPressure                        False   Wed, 15 Jul 2026 22:08:51 +0000   Wed, 15 Jul 2026 18:12:03 +0000   KubeletHasSufficientMemory   kubelet has sufficient memory available
+  DiskPressure                          False   Wed, 15 Jul 2026 22:08:51 +0000   Wed, 15 Jul 2026 18:12:03 +0000   KubeletHasNoDiskPressure     kubelet has no disk pressure
+  PIDPressure                           False   Wed, 15 Jul 2026 22:08:51 +0000   Wed, 15 Jul 2026 18:12:03 +0000   KubeletHasSufficientPID      kubelet has sufficient PID available
+  Ready                                 True    Wed, 15 Jul 2026 22:08:51 +0000   Wed, 15 Jul 2026 18:12:22 +0000   KubeletReady                 kubelet is posting ready status
+  doks.kubernetes.io/NvidiaGpuReady     True    Wed, 15 Jul 2026 22:08:42 +0000   Wed, 15 Jul 2026 18:13:12 +0000   EndpointOK                   Endpoint reports ready at http://127.0.0.1:5000/metrics
+  doks.kubernetes.io/CiliumAgentReady   True    Wed, 15 Jul 2026 22:08:51 +0000   Wed, 15 Jul 2026 18:12:51 +0000   EndpointOK                   Endpoint reports ready at http://127.0.0.1:9879/healthz
+Addresses:
+  InternalIP:  10.132.0.8
+  Hostname:    rs-mn-b300x8-pool-37ylku
+  ExternalIP:  165.245.199.226
+Capacity:
+  cpu:                224
+  ephemeral-storage:  2111508792Ki
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             3699199600Ki
+  nvidia.com/gpu:     8
+  pods:               110
+  rdma/fabric0:       100
+  rdma/fabric1:       100
+  rdma/fabric10:      100
+  rdma/fabric11:      100
+  rdma/fabric12:      100
+  rdma/fabric13:      100
+  rdma/fabric14:      100
+  rdma/fabric15:      100
+  rdma/fabric2:       100
+  rdma/fabric3:       100
+  rdma/fabric4:       100
+  rdma/fabric5:       100
+  rdma/fabric6:       100
+  rdma/fabric7:       100
+  rdma/fabric8:       100
+  rdma/fabric9:       100
+Allocatable:
+  cpu:                223340m
+  ephemeral-storage:  1945966499486
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             3617268336Ki
+  nvidia.com/gpu:     8
+  pods:               110
+  rdma/fabric0:       100
+  rdma/fabric1:       100
+  rdma/fabric10:      100
+  rdma/fabric11:      100
+  rdma/fabric12:      100
+  rdma/fabric13:      100
+  rdma/fabric14:      100
+  rdma/fabric15:      100
+  rdma/fabric2:       100
+  rdma/fabric3:       100
+  rdma/fabric4:       100
+  rdma/fabric5:       100
+  rdma/fabric6:       100
+  rdma/fabric7:       100
+  rdma/fabric8:       100
+  rdma/fabric9:       100
+System Info:
+  Machine ID:                 049042706d054e82bfbcb09514d81534
+  System UUID:                04904270-6d05-4e82-bfbc-b09514d81534
+  Boot ID:                    3c52ddd4-357e-445a-b197-aa534f323d48
+  Kernel Version:             6.12.94+deb13-amd64
+  OS Image:                   Debian GNU/Linux 13 (trixie)
+  Operating System:           linux
+  Architecture:               amd64
+  Container Runtime Version:  containerd://2.2.3
+  Kubelet Version:            v1.36.0
+  Kube-Proxy Version:         
+ProviderID:                   digitalocean://584880378
+Non-terminated Pods:          (6 in total)
+  Namespace                   Name                                        CPU Requests  CPU Limits  Memory Requests  Memory Limits  Age
+  ---------                   ----                                        ------------  ----------  ---------------  -------------  ---
+  kube-system                 cilium-2lrcg                                310m (0%)     1 (0%)      332Mi (0%)       1Gi (0%)       3h56m
+  kube-system                 csi-do-node-hr7vp                           0 (0%)        0 (0%)      0 (0%)           0 (0%)         3h56m
+  kube-system                 do-node-agent-nvidia-dcgm-exporter-jh22c    312m (0%)     1050m (0%)  312Mi (0%)       1356Mi (0%)    3h56m
+  kube-system                 doks-telemetry-config-reloader-kx2jf        0 (0%)        0 (0%)      0 (0%)           0 (0%)         3h56m
+  kube-system                 k8s-nvidia-device-plugin-d9d6t              0 (0%)        0 (0%)      0 (0%)           0 (0%)         3h56m
+  kube-system                 rdma-shared-dp-ds-24pf8                     0 (0%)        0 (0%)      0 (0%)           0 (0%)         3h56m
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests    Limits
+  --------           --------    ------
+  cpu                622m (0%)   2050m (0%)
+  memory             644Mi (0%)  2380Mi (0%)
+  ephemeral-storage  5Gi (0%)    5Gi (0%)
+  hugepages-1Gi      0 (0%)      0 (0%)
+  hugepages-2Mi      0 (0%)      0 (0%)
+  nvidia.com/gpu     0           0
+  rdma/fabric0       0           0
+  rdma/fabric1       0           0
+  rdma/fabric10      0           0
+  rdma/fabric11      0           0
+  rdma/fabric12      0           0
+  rdma/fabric13      0           0
+  rdma/fabric14      0           0
+  rdma/fabric15      0           0
+  rdma/fabric2       0           0
+  rdma/fabric3       0           0
+  rdma/fabric4       0           0
+  rdma/fabric5       0           0
+  rdma/fabric6       0           0
+  rdma/fabric7       0           0
+  rdma/fabric8       0           0
+  rdma/fabric9       0           0
+Events:              <none>
+```
+
+</details>
+
+### Key Plugins 
+
+
+#### do-node-agent-nvidia-dcgm-exporter
+
+The do-node-agent-nvidia-dcgm-exporter DaemonSet provides NVIDIA GPU observability and node health reporting for DOKS clusters. It runs on every NVIDIA GPU node and collects detailed GPU telemetry—including utilization, memory, temperature, power, and other hardware metrics—using the nvidia-dcgm-container (DCGM Exporter). Metrics are exposed on a local endpoint (127.0.0.1:5000/metrics). A readiness component (nrr-status-patcher) continuously monitors this endpoint and updates the Kubernetes node condition doks.kubernetes.io/NvidiaGpuReady based on GPU health. The do-node-agent consumes both GPU and Kubernetes metrics and forwards them to DO's monitoring backend, enriching the data with cluster and node pool metadata for centralized monitoring and observability.
+
+``` bash
+kubectl -n kube-system describe daemonset do-node-agent-nvidia-dcgm-exporter
+
+kubectl -n kube-system logs -f daemonset/do-node-agent-nvidia-dcgm-exporter 
+kubectl -n kube-system get pods -o wide | grep do-node-agent-nvidia-dcgm-exporter
+kubectl -n kube-system logs -f do-node-agent-nvidia-dcgm-exporter-4xjdt -c nrr-status-patcher
+kubectl -n kube-system logs -f do-node-agent-nvidia-dcgm-exporter-4xjdt -c do-node-agent
+kubectl -n kube-system logs -f do-node-agent-nvidia-dcgm-exporter-4xjdt -c nvidia-dcgm-container
+```
+
+#### k8s-nvidia-device-plugin
+
+The k8s-nvidia-device-plugin DaemonSet exposes NVIDIA GPUs as schedulable Kubernetes resources by implementing the Kubernetes Device Plugin API. It runs on every NVIDIA GPU node and discovers GPU devices using the NVIDIA Container Toolkit and host driver interfaces. The plugin registers with kubelet through a gRPC socket under /var/lib/kubelet/device-plugins, allowing kubelet to advertise GPU resources (for example, nvidia.com/gpu) to the Kubernetes scheduler. As a result, GPU workloads are scheduled only on nodes with available NVIDIA GPU resources.
+
+GPU devices are not manually mounted into pods. Instead, they are allocated through the Kubernetes Device Plugin framework. When a pod requests resources such as nvidia.com/gpu, kubelet invokes the NVIDIA Device Plugin's Allocate() gRPC call. The plugin selects the requested GPU devices and returns the container runtime configuration required to access them. Kubelet incorporates this information into the OCI container specification, and the container runtime (such as containerd or runc) injects the required NVIDIA device nodes, driver libraries, and environment variables into the container, making the allocated GPUs available to the workload.
+
+The NVIDIA Device Plugin also supports the Container Device Interface (CDI). In DOKS, the DaemonSet mounts /var/run/cdi, enabling the plugin to generate CDI device specifications that describe the allocated GPUs and their required container configuration. CDI provides a standardized mechanism for runtimes to inject GPU devices into containers and is used by Kubernetes Dynamic Resource Allocation (DRA). With DRA, GPU resources are requested through ResourceClaims and managed by the NVIDIA DRA Resource Driver rather than the Device Plugin framework. Device Plugin and DRA are mutually exclusive allocation mechanisms for a given resource. While the Device Plugin can inject GPU devices directly, DRA relies on CDI specifications, which are consumed by the container runtime at container startup to configure GPU access.
+
+``` bash
+kubectl -n kube-system describe daemonset k8s-nvidia-device-plugin
+
+kubectl -n kube-system logs -f daemonset/k8s-nvidia-device-plugin
+kubectl -n kube-system get pods -o wide | grep k8s-nvidia-device-plugin
+kubectl -n kube-system logs -f k8s-nvidia-device-plugin-8kslh 
+```
+
+#### rdma-shared-dp-ds 
+
+The rdma-shared-dp-ds DaemonSet detects RDMA-capable hardware on the host, and registers RDMA resources with kubelet using the Kubernetes Device Plugin API over a gRPC socket under /var/lib/kubelet/device-plugins. Once registered, kubelet advertises RDMA capabilities as schedulable resources, allowing workloads to request and be allocated high-bandwidth, low-latency network access.
+
+As with GPU devices, RDMA devices are not manually mounted into pods. Instead, they are exposed through the Kubernetes Device Plugin framework. When a pod requests RDMA resources, kubelet invokes the RDMA device plugin’s Allocate() gRPC call. The plugin selects the appropriate host devices and returns a container runtime specification describing the required device mappings, which kubelet translates into an OCI-compatible container specification. The container runtime (e.g., containerd/runc) performs the necessary bind mounts from the host into the container’s /dev namespace, making devices such as /dev/infiniband available inside the pod.
+
+``` bash
+kubectl -n kube-system describe daemonset rdma-shared-dp-ds
+
+kubectl -n kube-system describe configmap rdma-devices 
+kubectl -n kube-system logs -f daemonset/rdma-shared-dp-ds
+kubectl -n kube-system get pods -o wide | grep rdma-shared-dp-ds
+kubectl -n kube-system logs -f rdma-shared-dp-ds-24pf8
+```
+
+## Enabling RDMA Sharing 
+
+### Step 1 - Multus CNI
+
+[Install the Multus CNI plugin](https://docs.digitalocean.com/products/kubernetes/how-to/configure-multinode-gpus/#required-plugins):
+
+``` bash
+# kubectl apply -f https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/master/deployments/multus-daemonset-thick.yml
+
+customresourcedefinition.apiextensions.k8s.io/network-attachment-definitions.k8s.cni.cncf.io created
+clusterrole.rbac.authorization.k8s.io/multus created
+clusterrolebinding.rbac.authorization.k8s.io/multus created
+serviceaccount/multus created
+configmap/multus-daemon-config created
+daemonset.apps/kube-multus-ds created
+
+# kubectl get pods -A | grep multus
+kube-system   kube-multus-ds-6rmbq                       1/1     Running   0               20s
+kube-system   kube-multus-ds-9cljn                       1/1     Running   0               20s
+kube-system   kube-multus-ds-h8pl2                       1/1     Running   0               20s
+kube-system   kube-multus-ds-rcnwt                       1/1     Running   0               20s
+```
+
+kube-multus-ds installs and configures Multus on every node, making it the primary CNI so that kubelet’s standard CNI request is routed through Multus.
+
+When kubelet creates a Pod, it calls the container runtime, which then invokes the CNI plugin to set up networking. Because Multus is configured as the primary CNI in /etc/cni/net.d/, this request is first handled by Multus instead of a single CNI plugin. Multus reads the Pod’s network annotations and delegates interface setup to the appropriate CNI plugins (e.g., Cilium for eth0 and host-device for RDMA interfaces). These plugins attach their respective interfaces into the Pod’s network namespace, after which Multus returns the combined network configuration back through the CNI runtime to kubelet.
+
+```
+# DOKS Worker
+# ls /etc/cni/net.d/
+00-multus.conf	
+05-cilium.conflist
+
+# cat /etc/cni/net.d/00-multus.conf
+{
+  "cniVersion":"0.3.1",
+  "logLevel":"verbose",
+  "logToStderr":true,
+  "name":"multus-cni-network",
+  "clusterNetwork":"/host/etc/cni/net.d/05-cilium.conflist",
+  "type":"multus-shim"
+}
+```
+
+### Step 2 - Whereabouts IPAM CNI 
+
+Install the Whereabouts IPAM CNI by following the instructions in [this guide](https://github.com/k8snetworkplumbingwg/whereabouts).
+
+``` bash
+# git clone https://github.com/k8snetworkplumbingwg/whereabouts && cd whereabouts
+# kubectl apply \
+    -f doc/crds/daemonset-install.yaml \
+    -f doc/crds/whereabouts.cni.cncf.io_ippools.yaml \
+    -f doc/crds/whereabouts.cni.cncf.io_overlappingrangeipreservations.yaml \
+    -f doc/crds/reconciler-deployment.yaml
+
+serviceaccount/whereabouts created
+clusterrolebinding.rbac.authorization.k8s.io/whereabouts created
+clusterrole.rbac.authorization.k8s.io/whereabouts-cni created
+configmap/whereabouts-config created
+daemonset.apps/whereabouts created
+customresourcedefinition.apiextensions.k8s.io/ippools.whereabouts.cni.cncf.io created
+customresourcedefinition.apiextensions.k8s.io/overlappingrangeipreservations.whereabouts.cni.cncf.io created
+deployment.apps/whereabouts-reconciler created
+
+# kubectl -n kube-system describe configmap whereabouts-config 
+# kubectl -n kube-system describe daemonset whereabouts
+```
+
+### Step 3 - ipvlan CNI
+
+The ipvlan CNI plugin is preinstalled in DOKS workers:
+
+``` bash
+ls -l /opt/cni/bin/
+
+total 266488
+-rw-r--r-- 1 root root    11357 Apr 24 10:38 LICENSE
+-rw-r--r-- 1 root root     2343 Apr 24 10:38 README.md
+-rwxr-xr-x 1 root root  5042926 Apr 24 10:38 bandwidth
+-rwxr-xr-x 1 root root  5698763 Apr 24 10:38 bridge
+-rwxr-xr-x 1 root root 81425208 Jul 15 18:12 cilium-cni
+-rwxr-xr-x 1 root root 13725422 Apr 24 10:38 dhcp
+-rwxr-xr-x 1 root root  5251069 Apr 24 10:38 dummy
+-rwxr-xr-x 1 root root  5702145 Apr 24 10:38 firewall
+-rwxr-xr-x 1 root root  5159967 Apr 24 10:38 host-device
+-rwxr-xr-x 1 root root  4350778 Apr 24 10:38 host-local
+-rwxr-xr-x 1 root root  5274322 Apr 24 10:38 ipvlan        # Preinstalled
+-rwxr-xr-x 1 root root  4302030 Apr 24 10:38 loopback
+-rwxr-xr-x 1 root root  5307111 Apr 24 10:38 macvlan
+-rwxr-xr-x 1 root root 49476536 Jul 15 22:27 multus-shim
+-rwxr-xr-x 1 root root  3719530 Jul 15 22:27 passthru
+-rwxr-xr-x 1 root root  5108385 Apr 24 10:38 portmap
+-rwxr-xr-x 1 root root  5475470 Apr 24 10:38 ptp
+-rwxr-xr-x 1 root root  4525826 Apr 24 10:38 sbr
+-rwxr-xr-x 1 root root  3776708 Apr 24 10:38 static
+-rwxr-xr-x 1 root root  5453308 Apr 24 10:38 tap
+-rwxr-xr-x 1 root root  4389084 Apr 24 10:38 tuning
+-rwxr-xr-x 1 root root  5267679 Apr 24 10:38 vlan
+-rwxr-xr-x 1 root root  4685012 Apr 24 10:38 vrf
+-rwxr-xr-x 1 root root 39700247 Jul 15 22:31 whereabouts   # Installed by the Whereabouts IPAM CNI
+```
+
+### Step 4 - NAD
+
+
+[NetworkAttachmentDefinitions](https://github.com/k8snetworkplumbingwg/multus-cni/blob/master/docs/how-to-use.md#create-network-attachment-definition) (NADs) define the configuration for secondary networks but do not create or attach network interfaces themselves. Instead, pods reference NADs through annotations, and Multus CNI uses the referenced definitions to create and attach the corresponding interfaces during pod creation. A NAD only needs to be defined once and can reside in any namespace, provided it is accessible to Multus when the pod is created.
+
+Prepare and deploy [nvidia-mn-doks/ipvlan-network-attachments.yaml](rdma-sharing/ipvlan-network-attachments.yaml) configuration file to create virtual fabricX interfaces for pods while using Multus CNI with the ipvlan CNI plugin.
+
+
+``` bash
+# kubectl apply -f nvidia-mn-doks/ipvlan-network-attachments.yaml  
+
+networkattachmentdefinition.k8s.cni.cncf.io/ipvlan-fabric0 created
+networkattachmentdefinition.k8s.cni.cncf.io/ipvlan-fabric1 created
+networkattachmentdefinition.k8s.cni.cncf.io/ipvlan-fabric2 created
+networkattachmentdefinition.k8s.cni.cncf.io/ipvlan-fabric3 created
+networkattachmentdefinition.k8s.cni.cncf.io/ipvlan-fabric4 created
+networkattachmentdefinition.k8s.cni.cncf.io/ipvlan-fabric5 created
+networkattachmentdefinition.k8s.cni.cncf.io/ipvlan-fabric6 created
+networkattachmentdefinition.k8s.cni.cncf.io/ipvlan-fabric7 created
+networkattachmentdefinition.k8s.cni.cncf.io/ipvlan-fabric8 created
+networkattachmentdefinition.k8s.cni.cncf.io/ipvlan-fabric9 created
+networkattachmentdefinition.k8s.cni.cncf.io/ipvlan-fabric10 created
+networkattachmentdefinition.k8s.cni.cncf.io/ipvlan-fabric11 created
+networkattachmentdefinition.k8s.cni.cncf.io/ipvlan-fabric12 created
+networkattachmentdefinition.k8s.cni.cncf.io/ipvlan-fabric13 created
+networkattachmentdefinition.k8s.cni.cncf.io/ipvlan-fabric14 created
+networkattachmentdefinition.k8s.cni.cncf.io/ipvlan-fabric15 created
+
+kubectl get network-attachment-definitions
+kubectl describe network-attachment-definitions
+```
+
+## Summary – Pod GPU, RDMA and Network Setup Flow
+
+
+| Component                                       | Action                                                          | Output                                                |
+| ----------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------- |
+| **kubelet**                                     | Creates the pod and invokes the CNI plugins                     | Starts the pod networking workflow                    |
+| **Multus CNI**                                  | Orchestrates multiple CNI plugins                               | Attaches the primary and secondary network interfaces |
+| **↳ Cilium (primary CNI)**                      | Configures the default Kubernetes pod network                   | `eth0` inside the pod                                 |
+| **↳ ipvlan + Whereabouts IPAM (secondary CNI)** | Creates additional `ipvlan` interfaces and assigns IP addresses | `fabric0`–`fabric15` inside the pod                    |
+| **RDMA Device Plugin**                          | Advertises RDMA resources and mounts RDMA device files          | `/dev/infiniband` inside the pod                      |
+| **GPU Device Plugin**                           | Advertises GPU resources and mounts GPU device files            | `/dev/nvidia0`, `/dev/nvidiactl` and `/dev/nvidia-uvm` inside the pod              |
+
+## Multi-Node Depolyment Example 
+
+### Application Deployment
+
+Create a Kubernetes ConfigMap that stores [nvidia-mn-doks/p2p_bw_test.py](amd-mn-doks/p2p_bw_test.py). The ConfigMap will be mounted into two Pods, allowing both Pods to access the same script for RDMA/RoCE testing.
+
+``` bash
+# Mount the test script into the Pods.
+# kubectl create configmap mn-python-script --from-file=nvidia-mn-doks/p2p_bw_test.py
+
+# kubectl describe configmap mn-python-script
+# kubectl delete configmap mn-python-script
+```
+
+Build and deploy the Kubernetes manifest [nvidia-mn-doks/mn-ipvlan-6pods-3nodes.yaml](nvidia-mn-doks/mn-ipvlan-6pods-3nodes.yaml) to create four 6-GPU Pods across three DOKS workers with RDMA sharing enabled on all RDMA devices. 
+
+<details>
+<summary>B300x8 DOKS</summary>
+
+``` bash
+# kubectl get nodes -o wide
+NAME                       STATUS   ROLES    AGE     VERSION   INTERNAL-IP   EXTERNAL-IP       OS-IMAGE                       KERNEL-VERSION                CONTAINER-RUNTIME
+rs-mn-b300x8-pool-37ylk3   Ready    <none>   3h52m   v1.36.0   10.132.0.7    165.245.199.217   Debian GNU/Linux 13 (trixie)   6.12.94+deb13-amd64 (amd64)   containerd://2.2.3
+rs-mn-b300x8-pool-37ylk8   Ready    <none>   3h52m   v1.36.0   10.132.0.5    165.245.199.203   Debian GNU/Linux 13 (trixie)   6.12.94+deb13-amd64 (amd64)   containerd://2.2.3
+rs-mn-b300x8-pool-37ylku   Ready    <none>   3h52m   v1.36.0   10.132.0.8    165.245.199.226   Debian GNU/Linux 13 (trixie)   6.12.94+deb13-amd64 (amd64)   containerd://2.2.3
+rs-mn-cpu-pool-37ylkn      Ready    <none>   4h7m    v1.36.0   10.132.0.6    165.245.199.211   Debian GNU/Linux 13 (trixie)   6.12.94+deb13-amd64 (amd64)   containerd://2.2.3
+
+# kubectl apply -f nvidia-mn-doks/mn-ipvlan-6pods-3nodes.yaml
+
+# kubectl get pods -o wide
+NAME          READY   STATUS    RESTARTS   AGE   IP             NODE                       NOMINATED NODE   READINESS GATES
+mn-ipvlan-0   1/1     Running   0          66s   10.151.0.245   rs-mn-b300x8-pool-37ylk3   <none>           <none>
+mn-ipvlan-1   1/1     Running   0          58s   10.151.1.36    rs-mn-b300x8-pool-37ylku   <none>           <none>
+mn-ipvlan-2   1/1     Running   0          49s   10.151.1.170   rs-mn-b300x8-pool-37ylk8   <none>           <none>
+mn-ipvlan-3   1/1     Running   0          41s   10.151.0.229   rs-mn-b300x8-pool-37ylk3   <none>           <none>
+mn-ipvlan-4   1/1     Running   0          33s   10.151.1.160   rs-mn-b300x8-pool-37ylk8   <none>           <none>
+mn-ipvlan-5   1/1     Running   0          24s   10.151.1.119   rs-mn-b300x8-pool-37ylku   <none>           <none>
+
+# kubectl delete -f nvidia-mn-doks/mn-ipvlan-6pods-3nodes.yaml
+
+# 20 shares are used for each RDMA device on the DOKS worker
+# kubectl describe node rs-mn-b300x8-pool-37ylku
+Name:               rs-mn-b300x8-pool-37ylku
+Roles:              <none>
+Labels:             beta.kubernetes.io/arch=amd64
+                    beta.kubernetes.io/instance-type=gpu-b300x8-2304gb-lc-fabric-contracted
+                    beta.kubernetes.io/os=linux
+                    doks.digitalocean.com/gpu-brand=nvidia
+                    doks.digitalocean.com/gpu-model=b300
+                    doks.digitalocean.com/is-gpu-fabric-connected=true
+                    doks.digitalocean.com/managed=true
+                    doks.digitalocean.com/node-id=1fe11d5e-dd76-4c03-9e98-00711f742baa
+                    doks.digitalocean.com/node-pool=rs-mn-b300x8-pool
+                    doks.digitalocean.com/node-pool-id=512834ce-cb3d-4922-9fee-91fdd4ec92cc
+                    doks.digitalocean.com/nvidia-dcgm-enabled=true
+                    doks.digitalocean.com/version=1.36.0-do.2
+                    failure-domain.beta.kubernetes.io/region=mkc1
+                    kubernetes.io/arch=amd64
+                    kubernetes.io/hostname=rs-mn-b300x8-pool-37ylku
+                    kubernetes.io/os=linux
+                    node.kubernetes.io/instance-type=gpu-b300x8-2304gb-lc-fabric-contracted
+                    nvidia.com/gpu=8
+                    region=mkc1
+                    topology.kubernetes.io/region=mkc1
+Annotations:        alpha.kubernetes.io/provided-node-ip: 10.132.0.8
+                    csi.volume.kubernetes.io/nodeid: {"dobs.csi.digitalocean.com":"584880378"}
+                    network.cilium.io/ipv4-Ingress-ip: 10.151.1.40
+                    network.cilium.io/ipv4-cilium-host: 10.151.1.62
+                    network.cilium.io/ipv4-health-ip: 10.151.1.11
+                    network.cilium.io/ipv4-pod-cidr: 10.151.1.0/25
+                    node.alpha.kubernetes.io/ttl: 0
+                    volumes.kubernetes.io/controller-managed-attach-detach: true
+CreationTimestamp:  Wed, 15 Jul 2026 18:12:03 +0000
+Taints:             nvidia.com/gpu:NoSchedule
+Unschedulable:      false
+Lease:
+  HolderIdentity:  rs-mn-b300x8-pool-37ylku
+  AcquireTime:     <unset>
+  RenewTime:       Wed, 15 Jul 2026 23:49:25 +0000
+Conditions:
+  Type                                  Status  LastHeartbeatTime                 LastTransitionTime                Reason                       Message
+  ----                                  ------  -----------------                 ------------------                ------                       -------
+  NetworkUnavailable                    False   Wed, 15 Jul 2026 18:12:29 +0000   Wed, 15 Jul 2026 18:12:29 +0000   CiliumIsUp                   Cilium is running on this node
+  MemoryPressure                        False   Wed, 15 Jul 2026 23:49:27 +0000   Wed, 15 Jul 2026 18:12:03 +0000   KubeletHasSufficientMemory   kubelet has sufficient memory available
+  DiskPressure                          False   Wed, 15 Jul 2026 23:49:27 +0000   Wed, 15 Jul 2026 18:12:03 +0000   KubeletHasNoDiskPressure     kubelet has no disk pressure
+  PIDPressure                           False   Wed, 15 Jul 2026 23:49:27 +0000   Wed, 15 Jul 2026 18:12:03 +0000   KubeletHasSufficientPID      kubelet has sufficient PID available
+  Ready                                 True    Wed, 15 Jul 2026 23:49:27 +0000   Wed, 15 Jul 2026 18:12:22 +0000   KubeletReady                 kubelet is posting ready status
+  doks.kubernetes.io/NvidiaGpuReady     True    Wed, 15 Jul 2026 23:49:12 +0000   Wed, 15 Jul 2026 18:13:12 +0000   EndpointOK                   Endpoint reports ready at http://127.0.0.1:5000/metrics
+  doks.kubernetes.io/CiliumAgentReady   True    Wed, 15 Jul 2026 23:49:26 +0000   Wed, 15 Jul 2026 18:12:51 +0000   EndpointOK                   Endpoint reports ready at http://127.0.0.1:9879/healthz
+Addresses:
+  InternalIP:  10.132.0.8
+  Hostname:    rs-mn-b300x8-pool-37ylku
+  ExternalIP:  165.245.199.226
+Capacity:
+  cpu:                224
+  ephemeral-storage:  2111508792Ki
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             3699199600Ki
+  nvidia.com/gpu:     8
+  pods:               110
+  rdma/fabric0:       100
+  rdma/fabric1:       100
+  rdma/fabric10:      100
+  rdma/fabric11:      100
+  rdma/fabric12:      100
+  rdma/fabric13:      100
+  rdma/fabric14:      100
+  rdma/fabric15:      100
+  rdma/fabric2:       100
+  rdma/fabric3:       100
+  rdma/fabric4:       100
+  rdma/fabric5:       100
+  rdma/fabric6:       100
+  rdma/fabric7:       100
+  rdma/fabric8:       100
+  rdma/fabric9:       100
+Allocatable:
+  cpu:                223340m
+  ephemeral-storage:  1945966499486
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             3617268336Ki
+  nvidia.com/gpu:     8
+  pods:               110
+  rdma/fabric0:       100
+  rdma/fabric1:       100
+  rdma/fabric10:      100
+  rdma/fabric11:      100
+  rdma/fabric12:      100
+  rdma/fabric13:      100
+  rdma/fabric14:      100
+  rdma/fabric15:      100
+  rdma/fabric2:       100
+  rdma/fabric3:       100
+  rdma/fabric4:       100
+  rdma/fabric5:       100
+  rdma/fabric6:       100
+  rdma/fabric7:       100
+  rdma/fabric8:       100
+  rdma/fabric9:       100
+System Info:
+  Machine ID:                 049042706d054e82bfbcb09514d81534
+  System UUID:                04904270-6d05-4e82-bfbc-b09514d81534
+  Boot ID:                    3c52ddd4-357e-445a-b197-aa534f323d48
+  Kernel Version:             6.12.94+deb13-amd64
+  OS Image:                   Debian GNU/Linux 13 (trixie)
+  Operating System:           linux
+  Architecture:               amd64
+  Container Runtime Version:  containerd://2.2.3
+  Kubelet Version:            v1.36.0
+  Kube-Proxy Version:         
+ProviderID:                   digitalocean://584880378
+Non-terminated Pods:          (10 in total)
+  Namespace                   Name                                        CPU Requests  CPU Limits  Memory Requests  Memory Limits  Age
+  ---------                   ----                                        ------------  ----------  ---------------  -------------  ---
+  default                     mn-ipvlan-1                                 0 (0%)        0 (0%)      0 (0%)           0 (0%)         8m14s
+  default                     mn-ipvlan-5                                 0 (0%)        0 (0%)      0 (0%)           0 (0%)         7m40s
+  kube-system                 cilium-2lrcg                                310m (0%)     1 (0%)      332Mi (0%)       1Gi (0%)       5h37m
+  kube-system                 csi-do-node-hr7vp                           0 (0%)        0 (0%)      0 (0%)           0 (0%)         5h37m
+  kube-system                 do-node-agent-nvidia-dcgm-exporter-jh22c    312m (0%)     1050m (0%)  312Mi (0%)       1356Mi (0%)    5h37m
+  kube-system                 doks-telemetry-config-reloader-kx2jf        0 (0%)        0 (0%)      0 (0%)           0 (0%)         5h37m
+  kube-system                 k8s-nvidia-device-plugin-d9d6t              0 (0%)        0 (0%)      0 (0%)           0 (0%)         5h37m
+  kube-system                 kube-multus-ds-rcnwt                        100m (0%)     100m (0%)   50Mi (0%)        50Mi (0%)      81m
+  kube-system                 rdma-shared-dp-ds-24pf8                     0 (0%)        0 (0%)      0 (0%)           0 (0%)         5h37m
+  kube-system                 whereabouts-v5qff                           100m (0%)     100m (0%)   100Mi (0%)       200Mi (0%)     77m
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests    Limits
+  --------           --------    ------
+  cpu                822m (0%)   2250m (1%)
+  memory             794Mi (0%)  2630Mi (0%)
+  ephemeral-storage  5Gi (0%)    5Gi (0%)
+  hugepages-1Gi      0 (0%)      0 (0%)
+  hugepages-2Mi      0 (0%)      0 (0%)
+  nvidia.com/gpu     8           8
+  rdma/fabric0       20          20
+  rdma/fabric1       20          20
+  rdma/fabric10      20          20
+  rdma/fabric11      20          20
+  rdma/fabric12      20          20
+  rdma/fabric13      20          20
+  rdma/fabric14      20          20
+  rdma/fabric15      20          20
+  rdma/fabric2       20          20
+  rdma/fabric3       20          20
+  rdma/fabric4       20          20
+  rdma/fabric5       20          20
+  rdma/fabric6       20          20
+  rdma/fabric7       20          20
+  rdma/fabric8       20          20
+  rdma/fabric9       20          20
+Events:              <none>
+```
+
+</details>
+</br>
+
+
+### GID on the Host
+
+<details>
+<summary>B300x8: Host OS</summary>
+
+``` bash
+root@rs-mn-b300x8-pool-37ylku:~# ip -br a | grep fabric
+fabric0          UP             fe80::ac3a:e2ff:febc:9132/64 
+fabric1          UP             fe80::ac3a:e2ff:febc:9133/64 
+fabric2          UP             fe80::ac3a:e2ff:febc:9152/64 
+fabric3          UP             fe80::ac3a:e2ff:febc:9153/64 
+fabric4          UP             fe80::ac3a:e2ff:febc:9162/64 
+fabric5          UP             fe80::ac3a:e2ff:febc:9163/64 
+fabric6          UP             fe80::ac3a:e2ff:febc:9142/64 
+fabric7          UP             fe80::ac3a:e2ff:febc:9143/64 
+fabric8          UP             fe80::ac3a:e2ff:febc:91a2/64 
+fabric9          UP             fe80::ac3a:e2ff:febc:91a3/64 
+fabric10         UP             fe80::ac3a:e2ff:febc:9182/64 
+fabric11         UP             fe80::ac3a:e2ff:febc:9183/64 
+fabric12         UP             fe80::ac3a:e2ff:febc:9172/64 
+fabric13         UP             fe80::ac3a:e2ff:febc:9173/64 
+fabric14         UP             fe80::ac3a:e2ff:febc:9192/64 
+fabric15         UP             fe80::ac3a:e2ff:febc:9193/64 
+
+root@rs-mn-b300x8-pool-37ylku:~# ibv_devinfo -v | grep GID
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9132, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9132, RoCE v2
+                        GID[  2]:               0000:0000:0000:0000:0000:ffff:c0a8:6402, RoCE v1
+                        GID[  3]:               ::ffff:192.168.100.2, RoCE v2
+                        GID[  4]:               fe80:0000:0000:0000:ae3a:e200:01bc:9132, RoCE v1
+                        GID[  5]:               fe80::ae3a:e200:1bc:9132, RoCE v2
+                        GID[  6]:               0000:0000:0000:0000:0000:ffff:c0a8:6406, RoCE v1
+                        GID[  7]:               ::ffff:192.168.100.6, RoCE v2
+                        GID[  8]:               fe80:0000:0000:0000:ae3a:e200:02bc:9132, RoCE v1
+                        GID[  9]:               fe80::ae3a:e200:2bc:9132, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9133, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9133, RoCE v2
+                        GID[  2]:               0000:0000:0000:0000:0000:ffff:c0a8:6502, RoCE v1
+                        GID[  3]:               ::ffff:192.168.101.2, RoCE v2
+                        GID[  4]:               fe80:0000:0000:0000:ae3a:e200:01bc:9133, RoCE v1
+                        GID[  5]:               fe80::ae3a:e200:1bc:9133, RoCE v2
+                        GID[  6]:               0000:0000:0000:0000:0000:ffff:c0a8:6506, RoCE v1
+                        GID[  7]:               ::ffff:192.168.101.6, RoCE v2
+                        GID[  8]:               fe80:0000:0000:0000:ae3a:e200:02bc:9133, RoCE v1
+                        GID[  9]:               fe80::ae3a:e200:2bc:9133, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9152, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9152, RoCE v2
+                        GID[  2]:               0000:0000:0000:0000:0000:ffff:c0a8:6602, RoCE v1
+                        GID[  3]:               ::ffff:192.168.102.2, RoCE v2
+                        GID[  4]:               fe80:0000:0000:0000:ae3a:e200:01bc:9152, RoCE v1
+                        GID[  5]:               fe80::ae3a:e200:1bc:9152, RoCE v2
+                        GID[  6]:               0000:0000:0000:0000:0000:ffff:c0a8:6606, RoCE v1
+                        GID[  7]:               ::ffff:192.168.102.6, RoCE v2
+                        GID[  8]:               fe80:0000:0000:0000:ae3a:e200:02bc:9152, RoCE v1
+                        GID[  9]:               fe80::ae3a:e200:2bc:9152, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9153, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9153, RoCE v2
+                        GID[  2]:               0000:0000:0000:0000:0000:ffff:c0a8:6702, RoCE v1
+                        GID[  3]:               ::ffff:192.168.103.2, RoCE v2
+                        GID[  4]:               fe80:0000:0000:0000:ae3a:e200:01bc:9153, RoCE v1
+                        GID[  5]:               fe80::ae3a:e200:1bc:9153, RoCE v2
+                        GID[  6]:               0000:0000:0000:0000:0000:ffff:c0a8:6706, RoCE v1
+                        GID[  7]:               ::ffff:192.168.103.6, RoCE v2
+                        GID[  8]:               fe80:0000:0000:0000:ae3a:e200:02bc:9153, RoCE v1
+                        GID[  9]:               fe80::ae3a:e200:2bc:9153, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9162, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9162, RoCE v2
+                        GID[  2]:               0000:0000:0000:0000:0000:ffff:c0a8:6802, RoCE v1
+                        GID[  3]:               ::ffff:192.168.104.2, RoCE v2
+                        GID[  4]:               fe80:0000:0000:0000:ae3a:e200:01bc:9162, RoCE v1
+                        GID[  5]:               fe80::ae3a:e200:1bc:9162, RoCE v2
+                        GID[  6]:               0000:0000:0000:0000:0000:ffff:c0a8:6806, RoCE v1
+                        GID[  7]:               ::ffff:192.168.104.6, RoCE v2
+                        GID[  8]:               fe80:0000:0000:0000:ae3a:e200:02bc:9162, RoCE v1
+                        GID[  9]:               fe80::ae3a:e200:2bc:9162, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9163, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9163, RoCE v2
+                        GID[  2]:               0000:0000:0000:0000:0000:ffff:c0a8:6902, RoCE v1
+                        GID[  3]:               ::ffff:192.168.105.2, RoCE v2
+                        GID[  4]:               fe80:0000:0000:0000:ae3a:e200:01bc:9163, RoCE v1
+                        GID[  5]:               fe80::ae3a:e200:1bc:9163, RoCE v2
+                        GID[  6]:               0000:0000:0000:0000:0000:ffff:c0a8:6906, RoCE v1
+                        GID[  7]:               ::ffff:192.168.105.6, RoCE v2
+                        GID[  8]:               fe80:0000:0000:0000:ae3a:e200:02bc:9163, RoCE v1
+                        GID[  9]:               fe80::ae3a:e200:2bc:9163, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9142, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9142, RoCE v2
+                        GID[  2]:               0000:0000:0000:0000:0000:ffff:c0a8:6a02, RoCE v1
+                        GID[  3]:               ::ffff:192.168.106.2, RoCE v2
+                        GID[  4]:               fe80:0000:0000:0000:ae3a:e200:01bc:9142, RoCE v1
+                        GID[  5]:               fe80::ae3a:e200:1bc:9142, RoCE v2
+                        GID[  6]:               0000:0000:0000:0000:0000:ffff:c0a8:6a06, RoCE v1
+                        GID[  7]:               ::ffff:192.168.106.6, RoCE v2
+                        GID[  8]:               fe80:0000:0000:0000:ae3a:e200:02bc:9142, RoCE v1
+                        GID[  9]:               fe80::ae3a:e200:2bc:9142, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9143, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9143, RoCE v2
+                        GID[  2]:               0000:0000:0000:0000:0000:ffff:c0a8:6b02, RoCE v1
+                        GID[  3]:               ::ffff:192.168.107.2, RoCE v2
+                        GID[  4]:               fe80:0000:0000:0000:ae3a:e200:01bc:9143, RoCE v1
+                        GID[  5]:               fe80::ae3a:e200:1bc:9143, RoCE v2
+                        GID[  6]:               0000:0000:0000:0000:0000:ffff:c0a8:6b06, RoCE v1
+                        GID[  7]:               ::ffff:192.168.107.6, RoCE v2
+                        GID[  8]:               fe80:0000:0000:0000:ae3a:e200:02bc:9143, RoCE v1
+                        GID[  9]:               fe80::ae3a:e200:2bc:9143, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:91a2, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:91a2, RoCE v2
+                        GID[  2]:               0000:0000:0000:0000:0000:ffff:c0a8:6c02, RoCE v1
+                        GID[  3]:               ::ffff:192.168.108.2, RoCE v2
+                        GID[  4]:               fe80:0000:0000:0000:ae3a:e200:01bc:91a2, RoCE v1
+                        GID[  5]:               fe80::ae3a:e200:1bc:91a2, RoCE v2
+                        GID[  6]:               0000:0000:0000:0000:0000:ffff:c0a8:6c06, RoCE v1
+                        GID[  7]:               ::ffff:192.168.108.6, RoCE v2
+                        GID[  8]:               fe80:0000:0000:0000:ae3a:e200:02bc:91a2, RoCE v1
+                        GID[  9]:               fe80::ae3a:e200:2bc:91a2, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:91a3, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:91a3, RoCE v2
+                        GID[  2]:               0000:0000:0000:0000:0000:ffff:c0a8:6d02, RoCE v1
+                        GID[  3]:               ::ffff:192.168.109.2, RoCE v2
+                        GID[  4]:               fe80:0000:0000:0000:ae3a:e200:01bc:91a3, RoCE v1
+                        GID[  5]:               fe80::ae3a:e200:1bc:91a3, RoCE v2
+                        GID[  6]:               0000:0000:0000:0000:0000:ffff:c0a8:6d06, RoCE v1
+                        GID[  7]:               ::ffff:192.168.109.6, RoCE v2
+                        GID[  8]:               fe80:0000:0000:0000:ae3a:e200:02bc:91a3, RoCE v1
+                        GID[  9]:               fe80::ae3a:e200:2bc:91a3, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9182, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9182, RoCE v2
+                        GID[  2]:               0000:0000:0000:0000:0000:ffff:c0a8:6e02, RoCE v1
+                        GID[  3]:               ::ffff:192.168.110.2, RoCE v2
+                        GID[  4]:               fe80:0000:0000:0000:ae3a:e200:01bc:9182, RoCE v1
+                        GID[  5]:               fe80::ae3a:e200:1bc:9182, RoCE v2
+                        GID[  6]:               0000:0000:0000:0000:0000:ffff:c0a8:6e06, RoCE v1
+                        GID[  7]:               ::ffff:192.168.110.6, RoCE v2
+                        GID[  8]:               fe80:0000:0000:0000:ae3a:e200:02bc:9182, RoCE v1
+                        GID[  9]:               fe80::ae3a:e200:2bc:9182, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9183, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9183, RoCE v2
+                        GID[  2]:               0000:0000:0000:0000:0000:ffff:c0a8:6f02, RoCE v1
+                        GID[  3]:               ::ffff:192.168.111.2, RoCE v2
+                        GID[  4]:               fe80:0000:0000:0000:ae3a:e200:01bc:9183, RoCE v1
+                        GID[  5]:               fe80::ae3a:e200:1bc:9183, RoCE v2
+                        GID[  6]:               0000:0000:0000:0000:0000:ffff:c0a8:6f06, RoCE v1
+                        GID[  7]:               ::ffff:192.168.111.6, RoCE v2
+                        GID[  8]:               fe80:0000:0000:0000:ae3a:e200:02bc:9183, RoCE v1
+                        GID[  9]:               fe80::ae3a:e200:2bc:9183, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9172, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9172, RoCE v2
+                        GID[  2]:               0000:0000:0000:0000:0000:ffff:c0a8:7002, RoCE v1
+                        GID[  3]:               ::ffff:192.168.112.2, RoCE v2
+                        GID[  4]:               fe80:0000:0000:0000:ae3a:e200:01bc:9172, RoCE v1
+                        GID[  5]:               fe80::ae3a:e200:1bc:9172, RoCE v2
+                        GID[  6]:               0000:0000:0000:0000:0000:ffff:c0a8:7006, RoCE v1
+                        GID[  7]:               ::ffff:192.168.112.6, RoCE v2
+                        GID[  8]:               fe80:0000:0000:0000:ae3a:e200:02bc:9172, RoCE v1
+                        GID[  9]:               fe80::ae3a:e200:2bc:9172, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9173, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9173, RoCE v2
+                        GID[  2]:               0000:0000:0000:0000:0000:ffff:c0a8:7102, RoCE v1
+                        GID[  3]:               ::ffff:192.168.113.2, RoCE v2
+                        GID[  4]:               fe80:0000:0000:0000:ae3a:e200:01bc:9173, RoCE v1
+                        GID[  5]:               fe80::ae3a:e200:1bc:9173, RoCE v2
+                        GID[  6]:               0000:0000:0000:0000:0000:ffff:c0a8:7106, RoCE v1
+                        GID[  7]:               ::ffff:192.168.113.6, RoCE v2
+                        GID[  8]:               fe80:0000:0000:0000:ae3a:e200:02bc:9173, RoCE v1
+                        GID[  9]:               fe80::ae3a:e200:2bc:9173, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9192, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9192, RoCE v2
+                        GID[  2]:               0000:0000:0000:0000:0000:ffff:c0a8:7202, RoCE v1
+                        GID[  3]:               ::ffff:192.168.114.2, RoCE v2
+                        GID[  4]:               fe80:0000:0000:0000:ae3a:e200:01bc:9192, RoCE v1
+                        GID[  5]:               fe80::ae3a:e200:1bc:9192, RoCE v2
+                        GID[  6]:               0000:0000:0000:0000:0000:ffff:c0a8:7206, RoCE v1
+                        GID[  7]:               ::ffff:192.168.114.6, RoCE v2
+                        GID[  8]:               fe80:0000:0000:0000:ae3a:e200:02bc:9192, RoCE v1
+                        GID[  9]:               fe80::ae3a:e200:2bc:9192, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e2ff:febc:9193, RoCE v1
+                        GID[  1]:               fe80::ac3a:e2ff:febc:9193, RoCE v2
+                        GID[  2]:               0000:0000:0000:0000:0000:ffff:c0a8:7302, RoCE v1
+                        GID[  3]:               ::ffff:192.168.115.2, RoCE v2
+                        GID[  4]:               fe80:0000:0000:0000:ae3a:e200:01bc:9193, RoCE v1
+                        GID[  5]:               fe80::ae3a:e200:1bc:9193, RoCE v2
+                        GID[  6]:               0000:0000:0000:0000:0000:ffff:c0a8:7306, RoCE v1
+                        GID[  7]:               ::ffff:192.168.115.6, RoCE v2
+                        GID[  8]:               fe80:0000:0000:0000:ae3a:e200:02bc:9193, RoCE v1
+                        GID[  9]:               fe80::ae3a:e200:2bc:9193, RoCE v2
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e203:00bc:912e
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e203:00bc:912f
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e203:00bc:9130
+                        GID[  0]:               fe80:0000:0000:0000:ac3a:e203:00bc:9131
+
+</details>
+</br>
+
+### Pod IP Assignment, Routing and GID
+
+<details>
+<summary>B300x8: Within the pods</summary>
+
+``` bash
+root@mn-ipvlan-1:/workspace# nvidia-smi
+Thu Jul 16 00:01:46 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 590.48.01              Driver Version: 590.48.01      CUDA Version: 13.1     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA B300 SXM6 PC            On  |   00000000:85:00.0 Off |                    0 |
+| N/A   29C    P0            234W / 1100W |       0MiB / 275040MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA B300 SXM6 PC            On  |   00000000:8D:00.0 Off |                    0 |
+| N/A   29C    P0            238W / 1100W |       0MiB / 275040MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA B300 SXM6 PC            On  |   00000000:95:00.0 Off |                    0 |
+| N/A   29C    P0            238W / 1100W |       0MiB / 275040MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA B300 SXM6 PC            On  |   00000000:9D:00.0 Off |                    0 |
+| N/A   29C    P0            236W / 1100W |       0MiB / 275040MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+
+root@mn-ipvlan-1:/workspace# ls -l /dev/nvidia*
+crw-rw-rw- 1 root root 195, 254 Jul 15 23:41 /dev/nvidia-modeset
+crw-rw-rw- 1 root root 235,   0 Jul 15 23:41 /dev/nvidia-uvm
+crw-rw-rw- 1 root root 235,   1 Jul 15 23:41 /dev/nvidia-uvm-tools
+crw-rw-rw- 1 root root 195,   0 Jul 15 23:41 /dev/nvidia0
+crw-rw-rw- 1 root root 195,   1 Jul 15 23:41 /dev/nvidia1
+crw-rw-rw- 1 root root 195,   2 Jul 15 23:41 /dev/nvidia2
+crw-rw-rw- 1 root root 195,   3 Jul 15 23:41 /dev/nvidia3
+crw-rw-rw- 1 root root 195, 255 Jul 15 23:41 /dev/nvidiactl
+
+/dev/nvidia-caps:
+total 0
+cr-------- 1 root root 241, 1 Jul 16 00:01 nvidia-cap1
+cr--r--r-- 1 root root 241, 2 Jul 16 00:01 nvidia-cap2
+
+root@mn-ipvlan-1:/workspace# rdma link
+link mlx5_0/1 state ACTIVE physical_state LINK_UP 
+link mlx5_1/1 state ACTIVE physical_state LINK_UP 
+link mlx5_2/1 state ACTIVE physical_state LINK_UP 
+link mlx5_3/1 state ACTIVE physical_state LINK_UP 
+link mlx5_4/1 state ACTIVE physical_state LINK_UP 
+link mlx5_5/1 state ACTIVE physical_state LINK_UP 
+link mlx5_6/1 state ACTIVE physical_state LINK_UP 
+link mlx5_7/1 state ACTIVE physical_state LINK_UP 
+link mlx5_8/1 state ACTIVE physical_state LINK_UP 
+link mlx5_9/1 state ACTIVE physical_state LINK_UP 
+link mlx5_10/1 state ACTIVE physical_state LINK_UP 
+link mlx5_11/1 state ACTIVE physical_state LINK_UP 
+link mlx5_12/1 state ACTIVE physical_state LINK_UP 
+link mlx5_13/1 state ACTIVE physical_state LINK_UP 
+link mlx5_14/1 state ACTIVE physical_state LINK_UP 
+link mlx5_15/1 state ACTIVE physical_state LINK_UP 
+link mlx5_16/1 subnet_prefix fe80:0000:0000:0000 lid 1 sm_lid 1 lmc 0 state ACTIVE physical_state LINK_UP 
+link mlx5_17/1 subnet_prefix fe80:0000:0000:0000 lid 3 sm_lid 1 lmc 0 state ACTIVE physical_state LINK_UP 
+link mlx5_18/1 subnet_prefix fe80:0000:0000:0000 lid 6 sm_lid 1 lmc 0 state ACTIVE physical_state LINK_UP 
+link mlx5_19/1 subnet_prefix fe80:0000:0000:0000 lid 5 sm_lid 1 lmc 0 state ACTIVE physical_state LINK_UP 
+
+root@mn-ipvlan-1:/workspace# ibv_devices  
+    device          	   node GUID
+    ------          	----------------
+    mlx5_0          	ae3ae2fffebc9132
+    mlx5_1          	ae3ae2fffebc9133
+    mlx5_2          	ae3ae2fffebc9152
+    mlx5_3          	ae3ae2fffebc9153
+    mlx5_4          	ae3ae2fffebc9162
+    mlx5_5          	ae3ae2fffebc9163
+    mlx5_6          	ae3ae2fffebc9142
+    mlx5_7          	ae3ae2fffebc9143
+    mlx5_8          	ae3ae2fffebc91a2
+    mlx5_9          	ae3ae2fffebc91a3
+    mlx5_10         	ae3ae2fffebc9182
+    mlx5_11         	ae3ae2fffebc9183
+    mlx5_12         	ae3ae2fffebc9172
+    mlx5_13         	ae3ae2fffebc9173
+    mlx5_14         	ae3ae2fffebc9192
+    mlx5_15         	ae3ae2fffebc9193
+
+root@mn-ipvlan-1:/workspace#  ls /dev/infiniband/ -ls
+total 0
+0 crw-rw-rw- 1 root root  10, 262 Jul 15 23:41 rdma_cm
+0 crw------- 1 root root 231,   0 Jul 15 23:41 umad0
+0 crw------- 1 root root 231,   1 Jul 15 23:41 umad1
+0 crw------- 1 root root 231,  10 Jul 15 23:41 umad10
+0 crw------- 1 root root 231,  11 Jul 15 23:41 umad11
+0 crw------- 1 root root 231,  12 Jul 15 23:41 umad12
+0 crw------- 1 root root 231,  13 Jul 15 23:41 umad13
+0 crw------- 1 root root 231,  14 Jul 15 23:41 umad14
+0 crw------- 1 root root 231,  15 Jul 15 23:41 umad15
+0 crw------- 1 root root 231,   2 Jul 15 23:41 umad2
+0 crw------- 1 root root 231,   3 Jul 15 23:41 umad3
+0 crw------- 1 root root 231,   4 Jul 15 23:41 umad4
+0 crw------- 1 root root 231,   5 Jul 15 23:41 umad5
+0 crw------- 1 root root 231,   6 Jul 15 23:41 umad6
+0 crw------- 1 root root 231,   7 Jul 15 23:41 umad7
+0 crw------- 1 root root 231,   8 Jul 15 23:41 umad8
+0 crw------- 1 root root 231,   9 Jul 15 23:41 umad9
+0 crw-rw-rw- 1 root root 231, 192 Jul 15 23:41 uverbs0
+0 crw-rw-rw- 1 root root 231, 193 Jul 15 23:41 uverbs1
+0 crw-rw-rw- 1 root root 231, 202 Jul 15 23:41 uverbs10
+0 crw-rw-rw- 1 root root 231, 203 Jul 15 23:41 uverbs11
+0 crw-rw-rw- 1 root root 231, 204 Jul 15 23:41 uverbs12
+0 crw-rw-rw- 1 root root 231, 205 Jul 15 23:41 uverbs13
+0 crw-rw-rw- 1 root root 231, 206 Jul 15 23:41 uverbs14
+0 crw-rw-rw- 1 root root 231, 207 Jul 15 23:41 uverbs15
+0 crw-rw-rw- 1 root root 231, 194 Jul 15 23:41 uverbs2
+0 crw-rw-rw- 1 root root 231, 195 Jul 15 23:41 uverbs3
+0 crw-rw-rw- 1 root root 231, 196 Jul 15 23:41 uverbs4
+0 crw-rw-rw- 1 root root 231, 197 Jul 15 23:41 uverbs5
+0 crw-rw-rw- 1 root root 231, 198 Jul 15 23:41 uverbs6
+0 crw-rw-rw- 1 root root 231, 199 Jul 15 23:41 uverbs7
+0 crw-rw-rw- 1 root root 231, 200 Jul 15 23:41 uverbs8
+0 crw-rw-rw- 1 root root 231, 201 Jul 15 23:41 uverbs9
+
+root@mn-ipvlan-1:/workspace# ip -br a
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+net0@if4         UNKNOWN        192.168.100.2/24 fe80::ae3a:e200:1bc:9132/64 
+net1@if5         UNKNOWN        192.168.101.2/24 fe80::ae3a:e200:1bc:9133/64 
+net2@if6         UNKNOWN        192.168.102.2/24 fe80::ae3a:e200:1bc:9152/64 
+net3@if7         UNKNOWN        192.168.103.2/24 fe80::ae3a:e200:1bc:9153/64 
+net4@if8         UNKNOWN        192.168.104.2/24 fe80::ae3a:e200:1bc:9162/64 
+net5@if9         UNKNOWN        192.168.105.2/24 fe80::ae3a:e200:1bc:9163/64 
+net6@if10        UNKNOWN        192.168.106.2/24 fe80::ae3a:e200:1bc:9142/64 
+net7@if11        UNKNOWN        192.168.107.2/24 fe80::ae3a:e200:1bc:9143/64 
+net8@if12        UNKNOWN        192.168.108.2/24 fe80::ae3a:e200:1bc:91a2/64 
+net9@if13        UNKNOWN        192.168.109.2/24 fe80::ae3a:e200:1bc:91a3/64 
+net10@if14       UNKNOWN        192.168.110.2/24 fe80::ae3a:e200:1bc:9182/64 
+net11@if15       UNKNOWN        192.168.111.2/24 fe80::ae3a:e200:1bc:9183/64 
+net12@if16       UNKNOWN        192.168.112.2/24 fe80::ae3a:e200:1bc:9172/64 
+net13@if17       UNKNOWN        192.168.113.2/24 fe80::ae3a:e200:1bc:9173/64 
+net14@if18       UNKNOWN        192.168.114.2/24 fe80::ae3a:e200:1bc:9192/64 
+net15@if19       UNKNOWN        192.168.115.2/24 fe80::ae3a:e200:1bc:9193/64 
+eth0@if49        UP             10.151.1.36/32 fe80::44f4:6eff:fec0:af57/64 
+
+root@mn-ipvlan-1:/workspace# ibv_devinfo -v | grep GID
+			GID[  0]:		fe80:0000:0000:0000:ac3a:e2ff:febc:9132, RoCE v1
+			GID[  1]:		fe80::ac3a:e2ff:febc:9132, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:6402, RoCE v1
+			GID[  3]:		::ffff:192.168.100.2, RoCE v2
+			GID[  4]:		fe80:0000:0000:0000:ae3a:e200:01bc:9132, RoCE v1
+			GID[  5]:		fe80::ae3a:e200:1bc:9132, RoCE v2
+			GID[  6]:		0000:0000:0000:0000:0000:ffff:c0a8:6406, RoCE v1
+			GID[  7]:		::ffff:192.168.100.6, RoCE v2
+			GID[  8]:		fe80:0000:0000:0000:ae3a:e200:02bc:9132, RoCE v1
+			GID[  9]:		fe80::ae3a:e200:2bc:9132, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:ac3a:e2ff:febc:9133, RoCE v1
+			GID[  1]:		fe80::ac3a:e2ff:febc:9133, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:6502, RoCE v1
+			GID[  3]:		::ffff:192.168.101.2, RoCE v2
+			GID[  4]:		fe80:0000:0000:0000:ae3a:e200:01bc:9133, RoCE v1
+			GID[  5]:		fe80::ae3a:e200:1bc:9133, RoCE v2
+			GID[  6]:		0000:0000:0000:0000:0000:ffff:c0a8:6506, RoCE v1
+			GID[  7]:		::ffff:192.168.101.6, RoCE v2
+			GID[  8]:		fe80:0000:0000:0000:ae3a:e200:02bc:9133, RoCE v1
+			GID[  9]:		fe80::ae3a:e200:2bc:9133, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:ac3a:e2ff:febc:9152, RoCE v1
+			GID[  1]:		fe80::ac3a:e2ff:febc:9152, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:6602, RoCE v1
+			GID[  3]:		::ffff:192.168.102.2, RoCE v2
+			GID[  4]:		fe80:0000:0000:0000:ae3a:e200:01bc:9152, RoCE v1
+			GID[  5]:		fe80::ae3a:e200:1bc:9152, RoCE v2
+			GID[  6]:		0000:0000:0000:0000:0000:ffff:c0a8:6606, RoCE v1
+			GID[  7]:		::ffff:192.168.102.6, RoCE v2
+			GID[  8]:		fe80:0000:0000:0000:ae3a:e200:02bc:9152, RoCE v1
+			GID[  9]:		fe80::ae3a:e200:2bc:9152, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:ac3a:e2ff:febc:9153, RoCE v1
+			GID[  1]:		fe80::ac3a:e2ff:febc:9153, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:6702, RoCE v1
+			GID[  3]:		::ffff:192.168.103.2, RoCE v2
+			GID[  4]:		fe80:0000:0000:0000:ae3a:e200:01bc:9153, RoCE v1
+			GID[  5]:		fe80::ae3a:e200:1bc:9153, RoCE v2
+			GID[  6]:		0000:0000:0000:0000:0000:ffff:c0a8:6706, RoCE v1
+			GID[  7]:		::ffff:192.168.103.6, RoCE v2
+			GID[  8]:		fe80:0000:0000:0000:ae3a:e200:02bc:9153, RoCE v1
+			GID[  9]:		fe80::ae3a:e200:2bc:9153, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:ac3a:e2ff:febc:9162, RoCE v1
+			GID[  1]:		fe80::ac3a:e2ff:febc:9162, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:6802, RoCE v1
+			GID[  3]:		::ffff:192.168.104.2, RoCE v2
+			GID[  4]:		fe80:0000:0000:0000:ae3a:e200:01bc:9162, RoCE v1
+			GID[  5]:		fe80::ae3a:e200:1bc:9162, RoCE v2
+			GID[  6]:		0000:0000:0000:0000:0000:ffff:c0a8:6806, RoCE v1
+			GID[  7]:		::ffff:192.168.104.6, RoCE v2
+			GID[  8]:		fe80:0000:0000:0000:ae3a:e200:02bc:9162, RoCE v1
+			GID[  9]:		fe80::ae3a:e200:2bc:9162, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:ac3a:e2ff:febc:9163, RoCE v1
+			GID[  1]:		fe80::ac3a:e2ff:febc:9163, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:6902, RoCE v1
+			GID[  3]:		::ffff:192.168.105.2, RoCE v2
+			GID[  4]:		fe80:0000:0000:0000:ae3a:e200:01bc:9163, RoCE v1
+			GID[  5]:		fe80::ae3a:e200:1bc:9163, RoCE v2
+			GID[  6]:		0000:0000:0000:0000:0000:ffff:c0a8:6906, RoCE v1
+			GID[  7]:		::ffff:192.168.105.6, RoCE v2
+			GID[  8]:		fe80:0000:0000:0000:ae3a:e200:02bc:9163, RoCE v1
+			GID[  9]:		fe80::ae3a:e200:2bc:9163, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:ac3a:e2ff:febc:9142, RoCE v1
+			GID[  1]:		fe80::ac3a:e2ff:febc:9142, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:6a02, RoCE v1
+			GID[  3]:		::ffff:192.168.106.2, RoCE v2
+			GID[  4]:		fe80:0000:0000:0000:ae3a:e200:01bc:9142, RoCE v1
+			GID[  5]:		fe80::ae3a:e200:1bc:9142, RoCE v2
+			GID[  6]:		0000:0000:0000:0000:0000:ffff:c0a8:6a06, RoCE v1
+			GID[  7]:		::ffff:192.168.106.6, RoCE v2
+			GID[  8]:		fe80:0000:0000:0000:ae3a:e200:02bc:9142, RoCE v1
+			GID[  9]:		fe80::ae3a:e200:2bc:9142, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:ac3a:e2ff:febc:9143, RoCE v1
+			GID[  1]:		fe80::ac3a:e2ff:febc:9143, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:6b02, RoCE v1
+			GID[  3]:		::ffff:192.168.107.2, RoCE v2
+			GID[  4]:		fe80:0000:0000:0000:ae3a:e200:01bc:9143, RoCE v1
+			GID[  5]:		fe80::ae3a:e200:1bc:9143, RoCE v2
+			GID[  6]:		0000:0000:0000:0000:0000:ffff:c0a8:6b06, RoCE v1
+			GID[  7]:		::ffff:192.168.107.6, RoCE v2
+			GID[  8]:		fe80:0000:0000:0000:ae3a:e200:02bc:9143, RoCE v1
+			GID[  9]:		fe80::ae3a:e200:2bc:9143, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:ac3a:e2ff:febc:91a2, RoCE v1
+			GID[  1]:		fe80::ac3a:e2ff:febc:91a2, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:6c02, RoCE v1
+			GID[  3]:		::ffff:192.168.108.2, RoCE v2
+			GID[  4]:		fe80:0000:0000:0000:ae3a:e200:01bc:91a2, RoCE v1
+			GID[  5]:		fe80::ae3a:e200:1bc:91a2, RoCE v2
+			GID[  6]:		0000:0000:0000:0000:0000:ffff:c0a8:6c06, RoCE v1
+			GID[  7]:		::ffff:192.168.108.6, RoCE v2
+			GID[  8]:		fe80:0000:0000:0000:ae3a:e200:02bc:91a2, RoCE v1
+			GID[  9]:		fe80::ae3a:e200:2bc:91a2, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:ac3a:e2ff:febc:91a3, RoCE v1
+			GID[  1]:		fe80::ac3a:e2ff:febc:91a3, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:6d02, RoCE v1
+			GID[  3]:		::ffff:192.168.109.2, RoCE v2
+			GID[  4]:		fe80:0000:0000:0000:ae3a:e200:01bc:91a3, RoCE v1
+			GID[  5]:		fe80::ae3a:e200:1bc:91a3, RoCE v2
+			GID[  6]:		0000:0000:0000:0000:0000:ffff:c0a8:6d06, RoCE v1
+			GID[  7]:		::ffff:192.168.109.6, RoCE v2
+			GID[  8]:		fe80:0000:0000:0000:ae3a:e200:02bc:91a3, RoCE v1
+			GID[  9]:		fe80::ae3a:e200:2bc:91a3, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:ac3a:e2ff:febc:9182, RoCE v1
+			GID[  1]:		fe80::ac3a:e2ff:febc:9182, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:6e02, RoCE v1
+			GID[  3]:		::ffff:192.168.110.2, RoCE v2
+			GID[  4]:		fe80:0000:0000:0000:ae3a:e200:01bc:9182, RoCE v1
+			GID[  5]:		fe80::ae3a:e200:1bc:9182, RoCE v2
+			GID[  6]:		0000:0000:0000:0000:0000:ffff:c0a8:6e06, RoCE v1
+			GID[  7]:		::ffff:192.168.110.6, RoCE v2
+			GID[  8]:		fe80:0000:0000:0000:ae3a:e200:02bc:9182, RoCE v1
+			GID[  9]:		fe80::ae3a:e200:2bc:9182, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:ac3a:e2ff:febc:9183, RoCE v1
+			GID[  1]:		fe80::ac3a:e2ff:febc:9183, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:6f02, RoCE v1
+			GID[  3]:		::ffff:192.168.111.2, RoCE v2
+			GID[  4]:		fe80:0000:0000:0000:ae3a:e200:01bc:9183, RoCE v1
+			GID[  5]:		fe80::ae3a:e200:1bc:9183, RoCE v2
+			GID[  6]:		0000:0000:0000:0000:0000:ffff:c0a8:6f06, RoCE v1
+			GID[  7]:		::ffff:192.168.111.6, RoCE v2
+			GID[  8]:		fe80:0000:0000:0000:ae3a:e200:02bc:9183, RoCE v1
+			GID[  9]:		fe80::ae3a:e200:2bc:9183, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:ac3a:e2ff:febc:9172, RoCE v1
+			GID[  1]:		fe80::ac3a:e2ff:febc:9172, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:7002, RoCE v1
+			GID[  3]:		::ffff:192.168.112.2, RoCE v2
+			GID[  4]:		fe80:0000:0000:0000:ae3a:e200:01bc:9172, RoCE v1
+			GID[  5]:		fe80::ae3a:e200:1bc:9172, RoCE v2
+			GID[  6]:		0000:0000:0000:0000:0000:ffff:c0a8:7006, RoCE v1
+			GID[  7]:		::ffff:192.168.112.6, RoCE v2
+			GID[  8]:		fe80:0000:0000:0000:ae3a:e200:02bc:9172, RoCE v1
+			GID[  9]:		fe80::ae3a:e200:2bc:9172, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:ac3a:e2ff:febc:9173, RoCE v1
+			GID[  1]:		fe80::ac3a:e2ff:febc:9173, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:7102, RoCE v1
+			GID[  3]:		::ffff:192.168.113.2, RoCE v2
+			GID[  4]:		fe80:0000:0000:0000:ae3a:e200:01bc:9173, RoCE v1
+			GID[  5]:		fe80::ae3a:e200:1bc:9173, RoCE v2
+			GID[  6]:		0000:0000:0000:0000:0000:ffff:c0a8:7106, RoCE v1
+			GID[  7]:		::ffff:192.168.113.6, RoCE v2
+			GID[  8]:		fe80:0000:0000:0000:ae3a:e200:02bc:9173, RoCE v1
+			GID[  9]:		fe80::ae3a:e200:2bc:9173, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:ac3a:e2ff:febc:9192, RoCE v1
+			GID[  1]:		fe80::ac3a:e2ff:febc:9192, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:7202, RoCE v1
+			GID[  3]:		::ffff:192.168.114.2, RoCE v2
+			GID[  4]:		fe80:0000:0000:0000:ae3a:e200:01bc:9192, RoCE v1
+			GID[  5]:		fe80::ae3a:e200:1bc:9192, RoCE v2
+			GID[  6]:		0000:0000:0000:0000:0000:ffff:c0a8:7206, RoCE v1
+			GID[  7]:		::ffff:192.168.114.6, RoCE v2
+			GID[  8]:		fe80:0000:0000:0000:ae3a:e200:02bc:9192, RoCE v1
+			GID[  9]:		fe80::ae3a:e200:2bc:9192, RoCE v2
+			GID[  0]:		fe80:0000:0000:0000:ac3a:e2ff:febc:9193, RoCE v1
+			GID[  1]:		fe80::ac3a:e2ff:febc:9193, RoCE v2
+			GID[  2]:		0000:0000:0000:0000:0000:ffff:c0a8:7302, RoCE v1
+			GID[  3]:		::ffff:192.168.115.2, RoCE v2
+			GID[  4]:		fe80:0000:0000:0000:ae3a:e200:01bc:9193, RoCE v1
+			GID[  5]:		fe80::ae3a:e200:1bc:9193, RoCE v2
+			GID[  6]:		0000:0000:0000:0000:0000:ffff:c0a8:7306, RoCE v1
+			GID[  7]:		::ffff:192.168.115.6, RoCE v2
+			GID[  8]:		fe80:0000:0000:0000:ae3a:e200:02bc:9193, RoCE v1
+			GID[  9]:		fe80::ae3a:e200:2bc:9193, RoCE v2
+
+root@mn-ipvlan-1:/workspace# ip route
+default via 10.151.1.62 dev eth0 mtu 1500 
+10.151.1.62 dev eth0 scope link 
+192.168.100.0/24 dev net0 proto kernel scope link src 192.168.100.2 
+192.168.101.0/24 dev net1 proto kernel scope link src 192.168.101.2 
+192.168.102.0/24 dev net2 proto kernel scope link src 192.168.102.2 
+192.168.103.0/24 dev net3 proto kernel scope link src 192.168.103.2 
+192.168.104.0/24 dev net4 proto kernel scope link src 192.168.104.2 
+192.168.105.0/24 dev net5 proto kernel scope link src 192.168.105.2 
+192.168.106.0/24 dev net6 proto kernel scope link src 192.168.106.2 
+192.168.107.0/24 dev net7 proto kernel scope link src 192.168.107.2 
+192.168.108.0/24 dev net8 proto kernel scope link src 192.168.108.2 
+192.168.109.0/24 dev net9 proto kernel scope link src 192.168.109.2 
+192.168.110.0/24 dev net10 proto kernel scope link src 192.168.110.2 
+192.168.111.0/24 dev net11 proto kernel scope link src 192.168.111.2 
+192.168.112.0/24 dev net12 proto kernel scope link src 192.168.112.2 
+192.168.113.0/24 dev net13 proto kernel scope link src 192.168.113.2 
+192.168.114.0/24 dev net14 proto kernel scope link src 192.168.114.2 
+192.168.115.0/24 dev net15 proto kernel scope link src 192.168.115.2
+
+root@mn-ipvlan-1:/workspace# for fabric in {0..15}; do
+  subnet=$((100 + fabric))
+  for pod in {1..6}; do
+    ip="192.168.${subnet}.${pod}"
+    ping -c 1 -W 1 "$ip" >/dev/null 2>&1 \
+      && echo "OK   $ip" \
+      || echo "FAIL $ip"
+  done
+done
+OK   192.168.100.1
+OK   192.168.100.2
+OK   192.168.100.3
+OK   192.168.100.4
+OK   192.168.100.5
+OK   192.168.100.6
+OK   192.168.101.1
+OK   192.168.101.2
+OK   192.168.101.3
+OK   192.168.101.4
+OK   192.168.101.5
+OK   192.168.101.6
+OK   192.168.102.1
+OK   192.168.102.2
+OK   192.168.102.3
+OK   192.168.102.4
+OK   192.168.102.5
+OK   192.168.102.6
+OK   192.168.103.1
+OK   192.168.103.2
+OK   192.168.103.3
+OK   192.168.103.4
+OK   192.168.103.5
+OK   192.168.103.6
+OK   192.168.104.1
+OK   192.168.104.2
+OK   192.168.104.3
+OK   192.168.104.4
+OK   192.168.104.5
+OK   192.168.104.6
+OK   192.168.105.1
+OK   192.168.105.2
+OK   192.168.105.3
+OK   192.168.105.4
+OK   192.168.105.5
+OK   192.168.105.6
+OK   192.168.106.1
+OK   192.168.106.2
+OK   192.168.106.3
+OK   192.168.106.4
+OK   192.168.106.5
+OK   192.168.106.6
+OK   192.168.107.1
+OK   192.168.107.2
+OK   192.168.107.3
+OK   192.168.107.4
+OK   192.168.107.5
+OK   192.168.107.6
+OK   192.168.108.1
+OK   192.168.108.2
+OK   192.168.108.3
+OK   192.168.108.4
+OK   192.168.108.5
+OK   192.168.108.6
+OK   192.168.109.1
+OK   192.168.109.2
+OK   192.168.109.3
+OK   192.168.109.4
+OK   192.168.109.5
+OK   192.168.109.6
+OK   192.168.110.1
+OK   192.168.110.2
+OK   192.168.110.3
+OK   192.168.110.4
+OK   192.168.110.5
+OK   192.168.110.6
+OK   192.168.111.1
+OK   192.168.111.2
+OK   192.168.111.3
+OK   192.168.111.4
+OK   192.168.111.5
+OK   192.168.111.6
+OK   192.168.112.1
+OK   192.168.112.2
+OK   192.168.112.3
+OK   192.168.112.4
+OK   192.168.112.5
+OK   192.168.112.6
+OK   192.168.113.1
+OK   192.168.113.2
+OK   192.168.113.3
+OK   192.168.113.4
+OK   192.168.113.5
+OK   192.168.113.6
+OK   192.168.114.1
+OK   192.168.114.2
+OK   192.168.114.3
+OK   192.168.114.4
+OK   192.168.114.5
+OK   192.168.114.6
+OK   192.168.115.1
+OK   192.168.115.2
+OK   192.168.115.3
+OK   192.168.115.4
+OK   192.168.115.5
+OK   192.168.115.6
+
+root@mn-ipvlan-1:/workspace# arp | sort -k4
+Address                  HWtype  HWaddress           Flags Mask            Iface
+10.151.1.62              ether   22:cb:01:cc:ce:a3   C                     eth0
+192.168.100.1            ether   ae:3a:e2:d2:0e:b2   C                     net0
+192.168.100.3            ether   ae:3a:e2:cf:df:06   C                     net0
+192.168.100.4            ether   ae:3a:e2:d2:0e:b2   C                     net0
+192.168.100.5            ether   ae:3a:e2:cf:df:06   C                     net0
+192.168.100.6            ether   ae:3a:e2:bc:91:32   C                     net0
+192.168.101.1            ether   ae:3a:e2:d2:0e:b3   C                     net1
+192.168.101.3            ether   ae:3a:e2:cf:df:07   C                     net1
+192.168.101.4            ether   ae:3a:e2:d2:0e:b3   C                     net1
+192.168.101.5            ether   ae:3a:e2:cf:df:07   C                     net1
+192.168.101.6            ether   ae:3a:e2:bc:91:33   C                     net1
+192.168.110.1            ether   ae:3a:e2:d2:0f:02   C                     net10
+192.168.110.3            ether   ae:3a:e2:cf:df:56   C                     net10
+192.168.110.4            ether   ae:3a:e2:d2:0f:02   C                     net10
+192.168.110.5            ether   ae:3a:e2:cf:df:56   C                     net10
+192.168.110.6            ether   ae:3a:e2:bc:91:82   C                     net10
+192.168.111.1            ether   ae:3a:e2:d2:0f:03   C                     net11
+192.168.111.3            ether   ae:3a:e2:cf:df:57   C                     net11
+192.168.111.4            ether   ae:3a:e2:d2:0f:03   C                     net11
+192.168.111.5            ether   ae:3a:e2:cf:df:57   C                     net11
+192.168.111.6            ether   ae:3a:e2:bc:91:83   C                     net11
+192.168.112.1            ether   ae:3a:e2:d2:0e:f2   C                     net12
+192.168.112.3            ether   ae:3a:e2:cf:df:46   C                     net12
+192.168.112.4            ether   ae:3a:e2:d2:0e:f2   C                     net12
+192.168.112.5            ether   ae:3a:e2:cf:df:46   C                     net12
+192.168.112.6            ether   ae:3a:e2:bc:91:72   C                     net12
+192.168.113.1            ether   ae:3a:e2:d2:0e:f3   C                     net13
+192.168.113.3            ether   ae:3a:e2:cf:df:47   C                     net13
+192.168.113.4            ether   ae:3a:e2:d2:0e:f3   C                     net13
+192.168.113.5            ether   ae:3a:e2:cf:df:47   C                     net13
+192.168.113.6            ether   ae:3a:e2:bc:91:73   C                     net13
+192.168.114.1            ether   ae:3a:e2:d2:0f:12   C                     net14
+192.168.114.3            ether   ae:3a:e2:cf:df:66   C                     net14
+192.168.114.4            ether   ae:3a:e2:d2:0f:12   C                     net14
+192.168.114.5            ether   ae:3a:e2:cf:df:66   C                     net14
+192.168.114.6            ether   ae:3a:e2:bc:91:92   C                     net14
+192.168.115.1            ether   ae:3a:e2:d2:0f:13   C                     net15
+192.168.115.3            ether   ae:3a:e2:cf:df:67   C                     net15
+192.168.115.4            ether   ae:3a:e2:d2:0f:13   C                     net15
+192.168.115.5            ether   ae:3a:e2:cf:df:67   C                     net15
+192.168.115.6            ether   ae:3a:e2:bc:91:93   C                     net15
+192.168.102.1            ether   ae:3a:e2:d2:0e:d2   C                     net2
+192.168.102.3            ether   ae:3a:e2:cf:df:26   C                     net2
+192.168.102.4            ether   ae:3a:e2:d2:0e:d2   C                     net2
+192.168.102.5            ether   ae:3a:e2:cf:df:26   C                     net2
+192.168.102.6            ether   ae:3a:e2:bc:91:52   C                     net2
+192.168.103.1            ether   ae:3a:e2:d2:0e:d3   C                     net3
+192.168.103.3            ether   ae:3a:e2:cf:df:27   C                     net3
+192.168.103.4            ether   ae:3a:e2:d2:0e:d3   C                     net3
+192.168.103.5            ether   ae:3a:e2:cf:df:27   C                     net3
+192.168.103.6            ether   ae:3a:e2:bc:91:53   C                     net3
+192.168.104.1            ether   ae:3a:e2:d2:0e:e2   C                     net4
+192.168.104.3            ether   ae:3a:e2:cf:df:36   C                     net4
+192.168.104.4            ether   ae:3a:e2:d2:0e:e2   C                     net4
+192.168.104.5            ether   ae:3a:e2:cf:df:36   C                     net4
+192.168.104.6            ether   ae:3a:e2:bc:91:62   C                     net4
+192.168.105.1            ether   ae:3a:e2:d2:0e:e3   C                     net5
+192.168.105.3            ether   ae:3a:e2:cf:df:37   C                     net5
+192.168.105.4            ether   ae:3a:e2:d2:0e:e3   C                     net5
+192.168.105.5            ether   ae:3a:e2:cf:df:37   C                     net5
+192.168.105.6            ether   ae:3a:e2:bc:91:63   C                     net5
+192.168.106.1            ether   ae:3a:e2:d2:0e:c2   C                     net6
+192.168.106.3            ether   ae:3a:e2:cf:df:16   C                     net6
+192.168.106.4            ether   ae:3a:e2:d2:0e:c2   C                     net6
+192.168.106.5            ether   ae:3a:e2:cf:df:16   C                     net6
+192.168.106.6            ether   ae:3a:e2:bc:91:42   C                     net6
+192.168.107.1            ether   ae:3a:e2:d2:0e:c3   C                     net7
+192.168.107.3            ether   ae:3a:e2:cf:df:17   C                     net7
+192.168.107.4            ether   ae:3a:e2:d2:0e:c3   C                     net7
+192.168.107.5            ether   ae:3a:e2:cf:df:17   C                     net7
+192.168.107.6            ether   ae:3a:e2:bc:91:43   C                     net7
+192.168.108.1            ether   ae:3a:e2:d2:0f:22   C                     net8
+192.168.108.3            ether   ae:3a:e2:cf:df:76   C                     net8
+192.168.108.4            ether   ae:3a:e2:d2:0f:22   C                     net8
+192.168.108.5            ether   ae:3a:e2:cf:df:76   C                     net8
+192.168.108.6            ether   ae:3a:e2:bc:91:a2   C                     net8
+192.168.109.1            ether   ae:3a:e2:d2:0f:23   C                     net9
+192.168.109.3            ether   ae:3a:e2:cf:df:77   C                     net9
+192.168.109.4            ether   ae:3a:e2:d2:0f:23   C                     net9
+192.168.109.5            ether   ae:3a:e2:cf:df:77   C                     net9
+192.168.109.6            ether   ae:3a:e2:bc:91:a3   C                     net9
+```
+
+</details>
+</br>
+
+
+### RDMA Access Validation
+
+** Pod: mn-ipvlan-1 to Pod: mn-ipvlan-0 **
+ 
+``` bash
+# mn-ipvlan-0
+# kubectl exec -it mn-ipvlan-0 -- /bin/bash
+root@mn-ipvlan-0:/workspace# 
+    NCCL_DEBUG=INFO \
+    NCCL_SOCKET_IFNAME=eth0 \
+    NCCL_IB_QPS_PER_CONNECTION=8 \
+    NCCL_P2P_CHUNKSIZE=16777216 \
+    MASTER_ADDR=10.151.0.245 \
+    MASTER_PORT=12356 \
+    WORLD_SIZE=2 \
+    RANK=0 \
+    NCCL_IB_HCA=mlx5_0 \
+    GPU_ID=0 \
+    python3 p2p_bw_test.py
+
+# mn-ipvlan-1
+# kubectl exec -it mn-ipvlan-1 -- /bin/bash
+root@mn-ipvlan-1:/workspace#
+    NCCL_DEBUG=INFO \
+    NCCL_SOCKET_IFNAME=eth0 \
+    NCCL_IB_QPS_PER_CONNECTION=8 \
+    NCCL_P2P_CHUNKSIZE=16777216 \
+    MASTER_ADDR=10.151.0.245 \
+    MASTER_PORT=12356 \
+    WORLD_SIZE=2 \
+    RANK=1 \
+    NCCL_IB_HCA=mlx5_0 \
+    GPU_ID=0 \
+    python3 p2p_bw_test.py
+```
+
+## Documentation and Resources
+
+
+
+
+

@@ -1,0 +1,75 @@
+root@mn-ipvlan-0:/workspace# NCCL_DEBUG=INFO \
+    NCCL_SOCKET_IFNAME=eth0 \
+    NCCL_IB_QPS_PER_CONNECTION=8 \
+    NCCL_P2P_CHUNKSIZE=16777216 \
+    MASTER_ADDR=10.151.0.245 \
+    MASTER_PORT=12356 \
+    WORLD_SIZE=2 \
+    RANK=0 \
+    NCCL_IB_HCA=mlx5_0 \
+    GPU_ID=0 \
+    python3 p2p_bw_test.py
+
+Rank 0 / 2: using GPU 0
+Rank 0 / 2: allocating tensor
+[rank0]:[W716 00:21:17.239779053 ProcessGroupNCCL.cpp:4173] Warning: An unbatched P2P op (send/recv) was called on this ProcessGroup with size 2.  In lazy initialization mode, this will result in a new 2-rank NCCL communicator to be created. (function operator())
+mn-ipvlan-0:1354:1354 [0] NCCL INFO ENV/Plugin: Could not find: libnccl-env.so
+mn-ipvlan-0:1354:1354 [0] NCCL INFO NCCL_SOCKET_IFNAME set by environment to eth0
+mn-ipvlan-0:1354:1354 [0] NCCL INFO Bootstrap: Using eth0:10.151.0.245<0>
+mn-ipvlan-0:1354:1354 [0] NCCL INFO cudaDriverVersion 13010
+mn-ipvlan-0:1354:1354 [0] NCCL INFO NCCL version 2.29.7+cuda13.2
+mn-ipvlan-0:1354:1354 [0] NCCL INFO NCCL git version stable b81d6a5a3
+mn-ipvlan-0:1354:1354 [0] NCCL INFO Comm config Blocking set to 1
+mn-ipvlan-0:1354:1354 [0] NCCL INFO NET/Plugin: Could not find: libnccl-net.so
+mn-ipvlan-0:1354:1354 [0] NCCL INFO NCCL_SOCKET_IFNAME set by environment to eth0
+mn-ipvlan-0:1354:1354 [0] NCCL INFO NCCL_IB_HCA set to mlx5_0
+mn-ipvlan-0:1354:1354 [0] NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE [RO]; OOB eth0:10.151.0.245<0>
+mn-ipvlan-0:1354:1354 [0] NCCL INFO Initialized NET plugin IB
+mn-ipvlan-0:1354:1354 [0] NCCL INFO Assigned NET plugin IB to comm
+mn-ipvlan-0:1354:1354 [0] NCCL INFO GIN/Plugin: Could not find: libnccl-gin.so
+mn-ipvlan-0:1354:1354 [0] NCCL INFO Assigned GIN plugin GIN_IB_GDAKI to comm
+mn-ipvlan-0:1354:1354 [0] NCCL INFO Assigned RMA plugin GIN_IB_PROXY to comm
+mn-ipvlan-0:1354:1354 [0] NCCL INFO Using network IB
+mn-ipvlan-0:1354:1354 [0] NCCL INFO DMA-BUF is available on GPU device 0
+mn-ipvlan-0:1354:1354 [0] NCCL INFO [Rank 0] ncclCommInitRankConfig comm 0x373b0e30 rank 0 nranks 2 cudaDev 0 nvmlDev 0 busId a5000 commId 0xbf6512ac507de9a8 - Init START
+mn-ipvlan-0:1354:1354 [0] NCCL INFO RAS client listening socket at ::1<28028>
+mn-ipvlan-0:1354:1354 [0] NCCL INFO Bootstrap timings total 0.003442 (create 0.000036, send 0.000072, recv 0.001478, ring 0.000426, delay 0.000001)
+mn-ipvlan-0:1354:1354 [0] NCCL INFO MNNVL busId 0xa5000 fabric UUID 0.0 cliqueId 0x0 state 3 healthMask 0x80
+mn-ipvlan-0:1354:1354 [0] NCCL INFO ncclTopoGetCpuAffinity: Affinity for GPU 0 is 112-223. (GPU affinity = 112-223 ; CPU affinity = 0-223).
+mn-ipvlan-0:1354:1354 [0] NCCL INFO comm 0x373b0e30 rank 0 nRanks 2 nNodes 2 localRanks 1 localRank 0 MNNVL 0
+mn-ipvlan-0:1354:1354 [0] NCCL INFO Channel 00/02 : 0 1
+mn-ipvlan-0:1354:1354 [0] NCCL INFO Channel 01/02 : 0 1
+mn-ipvlan-0:1354:1354 [0] NCCL INFO Trees [0] 1/-1/-1->0->-1 [1] -1/-1/-1->0->1
+mn-ipvlan-0:1354:1354 [0] NCCL INFO P2P Chunksize set to 131072
+mn-ipvlan-0:1354:1354 [0] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so
+mn-ipvlan-0:1354:1354 [0] NCCL INFO Check P2P Type isAllDirectP2p 1 directMode 0 isAllCudaP2p 1
+mn-ipvlan-0:1354:1428 [0] NCCL INFO [Proxy Service] Device 0 CPU core 114
+mn-ipvlan-0:1354:1429 [0] NCCL INFO [Proxy Service UDS] Device 0 CPU core 115
+mn-ipvlan-0:1354:1354 [0] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so
+mn-ipvlan-0:1354:1354 [0] NCCL INFO threadThresholds 8/8/64 | 16/8/64 | 512 | 512
+mn-ipvlan-0:1354:1354 [0] NCCL INFO 2 coll channels, 2 collnet channels, 0 nvls channels, 2 p2p channels, 2 p2p channels per peer
+mn-ipvlan-0:1354:1354 [0] NCCL INFO Symmetric VA size=268GB
+mn-ipvlan-0:1354:1354 [0] NCCL INFO CC Off, workFifoBytes 1048576
+mn-ipvlan-0:1354:1354 [0] NCCL INFO ncclCommInitRankConfig comm 0x373b0e30 rank 0 nranks 2 cudaDev 0 nvmlDev 0 busId a5000 commId 0xbf6512ac507de9a8 - Init COMPLETE
+mn-ipvlan-0:1354:1354 [0] NCCL INFO Init timings - ncclCommInitRankConfig: rank 0 nranks 2 total 1.24 (kernels 1.02, alloc 0.17, bootstrap 0.00, allgathers 0.01, topo 0.03, graphs 0.00, connections 0.01, rest 0.00)
+mn-ipvlan-0:1354:1430 [0] NCCL INFO [Proxy Progress] Device 0 CPU core 116
+mn-ipvlan-0:1354:1354 [0] NCCL INFO Channel 00/1 : 0[0] -> 1[0] [send] via NET/IB/0/Shared
+mn-ipvlan-0:1354:1354 [0] NCCL INFO Channel 01/1 : 0[0] -> 1[0] [send] via NET/IB/0/Shared
+mn-ipvlan-0:1354:1428 [0] NCCL INFO NCCL_IB_QPS_PER_CONNECTION set by environment to 8.
+iter 0: 0.5546 sec
+iter 1: 0.5527 sec
+iter 2: 0.5512 sec
+iter 3: 0.5555 sec
+iter 4: 0.5547 sec
+iter 5: 0.5529 sec
+iter 6: 0.5504 sec
+iter 7: 0.5593 sec
+iter 8: 0.5546 sec
+iter 9: 0.5531 sec
+
+==== RESULT ====
+Avg time: 0.5539 sec
+Bandwidth: 248.13 Gbps
+Bandwidth: 28.89 GiB/s
+mn-ipvlan-0:1354:1354 [0] NCCL INFO comm 0x373b0e30 rank 0 nranks 2 cudaDev 0 busId a5000 - Destroy COMPLETE
+mn-ipvlan-0:1354:1354 [0] NCCL INFO ENV/Plugin: Closing env plugin ncclEnvDefault
