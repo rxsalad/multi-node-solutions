@@ -1,6 +1,6 @@
 # Multi-Node Environment Setup and Testing for DOKS with NVIDIA GPUs
 
-This document captures the step-by-step process for setting up a multi-node DOKS environment with NVIDIA B300x8 GPU nodes, configuring RDMA sharing using the Multus CNI and ipvlan CNI, and running the validation tests, including RCCL and PyTorch-based peer-to-peer (P2P) data transfer over RDMA/RoCE.
+This document captures the step-by-step process for setting up a multi-node DOKS environment with NVIDIA B300x8 GPU nodes, configuring RDMA sharing using the Multus CNI and ipvlan CNI, and running the validation tests, including RCCL and PyTorch P2P data transfer over RDMA/RoCE.
 
 For background information on the underlying concepts and theory, please refer to [amd-mn-k8s-environment](amd-mn-k8s-environment.MD), [amd-mn-k8s-rdma-sharing.MD](amd-mn-k8s-rdma-sharing.MD) and [amd-mn-k8s-rccl-testing.MD](amd-mn-k8s-rccl-testing.MD).
 
