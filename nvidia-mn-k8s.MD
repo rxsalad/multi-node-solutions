@@ -2,7 +2,7 @@
 
 This document provides a step-by-step guide for setting up a multi-node DOKS environment with NVIDIA B300x8 GPU nodes, configuring RDMA sharing using the Multus CNI and ipvlan CNI, and running the validation tests.
 
-For background information on the underlying concepts and theory, please refer to[amd-mn-k8s-environment](https://github.com/rxsalad/multi-node-solutions/blob/main/amd-mn-k8s-environment.MD) and [amd-mn-k8s-rdma-sharing.MD](https://github.com/rxsalad/multi-node-solutions/blob/main/amd-mn-k8s-rdma-sharing.MD).
+For background information on the underlying concepts and theory, please refer to [amd-mn-k8s-environment](amd-mn-k8s-environment.MD) and [amd-mn-k8s-rdma-sharing.MD](amd-mn-k8s-rdma-sharing.MD).
 
 The key difference is that AMD MI325x8 or MI350x8 clusters provide 8 rails in the GPU fabric, whereas NVIDIA B300x8 clusters provide 16 rails. As a result, the RDMA/RoCE configuration differs between the two platforms.
 
@@ -659,6 +659,285 @@ total 266488
 [NetworkAttachmentDefinitions](https://github.com/k8snetworkplumbingwg/multus-cni/blob/master/docs/how-to-use.md#create-network-attachment-definition) (NADs) define the configuration for secondary networks but do not create or attach network interfaces themselves. Instead, pods reference NADs through annotations, and Multus CNI uses the referenced definitions to create and attach the corresponding interfaces during pod creation. A NAD only needs to be defined once and can reside in any namespace, provided it is accessible to Multus when the pod is created.
 
 Prepare and deploy [nvidia-mn-doks/ipvlan-network-attachments.yaml](rdma-sharing/ipvlan-network-attachments.yaml) configuration file to create virtual fabricX interfaces for pods while using Multus CNI with the ipvlan CNI plugin.
+
+<details>
+<summary>ipvlan-network-attachments.yaml</summary>
+
+``` yaml
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric0
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric0",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.100.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric1
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric1",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.101.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric2
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric2",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.102.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric3
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric3",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.103.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric4
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric4",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.104.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric5
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric5",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.105.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric6
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric6",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.106.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric7
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric7",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.107.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric8
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric8",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.108.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric9
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric9",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.109.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric10
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric10",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.110.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric11
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric11",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.111.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric12
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric12",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.112.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric13
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric13",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.113.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric14
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric14",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.114.0/24"
+      }
+    }'
+---
+
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-fabric15
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ipvlan",
+      "master": "fabric15",
+      "mode": "l2",
+      "ipam": {  
+        "type": "whereabouts",
+        "range": "192.168.115.0/24"
+      }
+    }'
+---
+```
+</details>
+<br>
 
 
 ``` bash
