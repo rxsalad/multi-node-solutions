@@ -1,8 +1,8 @@
 # Multi-Node Environment Setup and Testing for DOKS with NVIDIA GPUs
 
-This document provides a step-by-step guide for setting up a multi-node DOKS environment with NVIDIA B300x8 GPU nodes, configuring RDMA sharing using the Multus CNI and ipvlan CNI, and running the validation tests.
+This document captures the step-by-step process for setting up a multi-node DOKS environment with NVIDIA B300x8 GPU nodes, configuring RDMA sharing using the Multus CNI and ipvlan CNI, and running the validation tests, including RCCL and PyTorch-based peer-to-peer (P2P) data transfer over RDMA/RoCE.
 
-For background information on the underlying concepts and theory, please refer to [amd-mn-k8s-environment](amd-mn-k8s-environment.MD) and [amd-mn-k8s-rdma-sharing.MD](amd-mn-k8s-rdma-sharing.MD).
+For background information on the underlying concepts and theory, please refer to [amd-mn-k8s-environment](amd-mn-k8s-environment.MD), [amd-mn-k8s-rdma-sharing.MD](amd-mn-k8s-rdma-sharing.MD) and [amd-mn-k8s-rccl-testing.MD](amd-mn-k8s-rccl-testing.MD).
 
 The key difference is that AMD MI325x8 or MI350x8 clusters provide 8 rails in the GPU fabric, whereas NVIDIA B300x8 clusters provide 16 rails. As a result, the RDMA/RoCE configuration differs between the two platforms.
 
@@ -12,7 +12,7 @@ Ensure that your team account has at least two B300x8 nodes available within the
 
 ``` bash
 doctl vpcs list
-doctl compute size list | grep gpu 
+doctl compute size list | grep cpu 
 doctl compute size list | grep gpu 
 doctl kubernetes cluster list
 
@@ -2078,9 +2078,673 @@ root@mn-ipvlan-1:/workspace#
     python3 p2p_bw_test.py
 ```
 
+## NCCL Tests
+
+### Environment
+
+``` bash
+# kubectl get nodes -o wide
+NAME                       STATUS   ROLES    AGE   VERSION   INTERNAL-IP   EXTERNAL-IP       OS-IMAGE                       KERNEL-VERSION                  CONTAINER-RUNTIME
+rs-mn-b300x8-pool-37orfo   Ready    <none>   14m   v1.36.0   10.132.0.19   165.245.192.129   Debian GNU/Linux 13 (trixie)   6.12.90+deb13.1-amd64 (amd64)   containerd://2.2.3
+rs-mn-b300x8-pool-37x4e3   Ready    <none>   8h    v1.36.0   10.132.0.5    165.245.193.214   Debian GNU/Linux 13 (trixie)   6.12.90+deb13.1-amd64 (amd64)   containerd://2.2.3
+rs-mn-b300x8-pool-37x4e8   Ready    <none>   8h    v1.36.0   10.132.0.4    165.245.193.217   Debian GNU/Linux 13 (trixie)   6.12.90+deb13.1-amd64 (amd64)   containerd://2.2.3
+rs-mn-b300x8-pool-37x4en   Ready    <none>   8h    v1.36.0   10.132.0.6    165.245.193.212   Debian GNU/Linux 13 (trixie)   6.12.90+deb13.1-amd64 (amd64)   containerd://2.2.3
+rs-mn-cpu-pool-37xu9d      Ready    <none>   19h   v1.36.0   10.132.0.13   165.245.199.252   Debian GNU/Linux 13 (trixie)   6.12.90+deb13.1-amd64 (amd64)   containerd://2.2.3
+```
+
+###  MPI Operator Installation
+
+``` bash
+# kubectl apply -f https://raw.githubusercontent.com/kubeflow/mpi-operator/v0.4.0/deploy/v2beta1/mpi-operator.yaml
+namespace/mpi-operator created
+customresourcedefinition.apiextensions.k8s.io/mpijobs.kubeflow.org created
+serviceaccount/mpi-operator created
+clusterrole.rbac.authorization.k8s.io/kubeflow-mpijobs-admin created
+clusterrole.rbac.authorization.k8s.io/kubeflow-mpijobs-edit created
+clusterrole.rbac.authorization.k8s.io/kubeflow-mpijobs-view created
+clusterrole.rbac.authorization.k8s.io/mpi-operator created
+clusterrolebinding.rbac.authorization.k8s.io/mpi-operator created
+deployment.apps/mpi-operator created
+
+# kubectl get pods -A | grep mpi
+mpi-operator   mpi-operator-65474ddc85-lx8kz              1/1     Running   0             67s
+```
+
+### AllReduce Tests
+
+<details>
+<summary>1 B300x8 DOKS Worker</summary>
+
+``` bash
+# kubectl apply -f nvidia-mn-doks/nccl-test-1-node-b300x8.yaml
+mpijob.kubeflow.org/mpi-multus-b300x8 created
+
+# kubectl delete mpijob mpi-multus-b300x8
+
+# kubectl get pods -o wide
+NAME                               READY   STATUS    RESTARTS   AGE     IP             NODE                       NOMINATED NODE   READINESS GATES
+mpi-multus-b300x8-launcher-b8v4h   1/1     Running   0          3m45s   10.133.0.9     rs-mn-cpu-pool-37xu9d      <none>           <none>
+mpi-multus-b300x8-worker-0         1/1     Running   0          3m45s   10.133.0.226   rs-mn-b300x8-pool-37x4e3   <none>           <none>
+
+# kubectl get mpijob
+NAME                AGE
+mpi-multus-b300x8   4m25s
+
+# kubectl get pods -o wide
+NAME                               READY   STATUS      RESTARTS   AGE    IP           NODE                    NOMINATED NODE   READINESS GATES
+mpi-multus-b300x8-launcher-zbgmc   0/1     Completed   0          6m7s   10.133.0.9   rs-mn-cpu-pool-37xu9d   <none>           <none>
+
+# kubectl describe mpijob mpi-multus-b300x8
+# kubectl logs mpi-multus-b300x8-worker-0 -c mpi-worker
+# kubectl exec -it mpi-multus-b300x8-worker-0 -- /bin/bash
+
+# kubectl logs -f mpi-multus-b300x8-launcher-b8v4h
+Warning: Permanently added '[mpi-multus-b300x8-worker-0.mpi-multus-b300x8.default.svc]:2222' (ED25519) to the list of known hosts.
+# Collective test starting: all_reduce_perf
+# nThread 1 nGpus 1 minBytes 8 maxBytes 17179869184 step: 2(factor) warmup iters: 5 iters: 100 agg iters: 1 validation: 1 graph: 0
+#
+# Using devices
+#  Rank  0 Group  0 Pid    305 on mpi-multus-b300x8-worker-0 device  0 [0000:85:00] NVIDIA B300 SXM6 PC
+#  Rank  1 Group  0 Pid    306 on mpi-multus-b300x8-worker-0 device  1 [0000:8d:00] NVIDIA B300 SXM6 PC
+#  Rank  2 Group  0 Pid    307 on mpi-multus-b300x8-worker-0 device  2 [0000:95:00] NVIDIA B300 SXM6 PC
+#  Rank  3 Group  0 Pid    308 on mpi-multus-b300x8-worker-0 device  3 [0000:9d:00] NVIDIA B300 SXM6 PC
+#  Rank  4 Group  0 Pid    312 on mpi-multus-b300x8-worker-0 device  4 [0000:a5:00] NVIDIA B300 SXM6 PC
+#  Rank  5 Group  0 Pid    314 on mpi-multus-b300x8-worker-0 device  5 [0000:ad:00] NVIDIA B300 SXM6 PC
+#  Rank  6 Group  0 Pid    316 on mpi-multus-b300x8-worker-0 device  6 [0000:b5:00] NVIDIA B300 SXM6 PC
+#  Rank  7 Group  0 Pid    321 on mpi-multus-b300x8-worker-0 device  7 [0000:bd:00] NVIDIA B300 SXM6 PC
+NCCL version 2.29.7+cuda13.2
+#
+#                                                              out-of-place                       in-place          
+#       size         count      type   redop    root     time   algbw   busbw #wrong     time   algbw   busbw #wrong
+#        (B)    (elements)                               (us)  (GB/s)  (GB/s)            (us)  (GB/s)  (GB/s)       
+           8             2     float     sum      -1    26.80    0.00    0.00      0    26.98    0.00    0.00      0
+          16             4     float     sum      -1    25.08    0.00    0.00      0    25.19    0.00    0.00      0
+          32             8     float     sum      -1    27.06    0.00    0.00      0    25.25    0.00    0.00      0
+          64            16     float     sum      -1    28.87    0.00    0.00      0    31.25    0.00    0.00      0
+         128            32     float     sum      -1    33.37    0.00    0.01      0    30.92    0.00    0.01      0
+         256            64     float     sum      -1    31.23    0.01    0.01      0    30.98    0.01    0.01      0
+         512           128     float     sum      -1    31.42    0.02    0.03      0    31.29    0.02    0.03      0
+        1024           256     float     sum      -1    31.64    0.03    0.06      0    31.63    0.03    0.06      0
+        2048           512     float     sum      -1    32.58    0.06    0.11      0    31.80    0.06    0.11      0
+        4096          1024     float     sum      -1    34.45    0.12    0.21      0    32.33    0.13    0.22      0
+        8192          2048     float     sum      -1    32.79    0.25    0.44      0    33.03    0.25    0.43      0
+       16384          4096     float     sum      -1    32.71    0.50    0.88      0    35.28    0.46    0.81      0
+       32768          8192     float     sum      -1    34.75    0.94    1.65      0    33.31    0.98    1.72      0
+       65536         16384     float     sum      -1    34.40    1.91    3.33      0    34.26    1.91    3.35      0
+      131072         32768     float     sum      -1    34.78    3.77    6.60      0    34.75    3.77    6.60      0
+      262144         65536     float     sum      -1    35.77    7.33   12.83      0    35.51    7.38   12.92      0
+      524288        131072     float     sum      -1    36.65   14.30   25.03      0    36.53   14.35   25.12      0
+     1048576        262144     float     sum      -1    36.69   28.58   50.01      0    37.08   28.28   49.48      0
+     2097152        524288     float     sum      -1    43.00   48.77   85.35      0    42.68   49.13   85.98      0
+     4194304       1048576     float     sum      -1    64.15   65.38  114.42      0    63.57   65.98  115.46      0
+     8388608       2097152     float     sum      -1    82.29  101.94  178.40      0    82.92  101.16  177.03      0
+    16777216       4194304     float     sum      -1    113.3  148.02  259.04      0    111.6  150.28  262.99      0
+    33554432       8388608     float     sum      -1    176.1  190.51  333.40      0    174.4  192.39  336.68      0
+    67108864      16777216     float     sum      -1    284.7  235.71  412.48      0    283.8  236.46  413.81      0
+   134217728      33554432     float     sum      -1    401.6  334.20  584.85      0    400.3  335.25  586.70      0
+   268435456      67108864     float     sum      -1    718.5  373.61  653.81      0    719.5  373.07  652.87      0
+   536870912     134217728     float     sum      -1   1338.4  401.14  701.99      0   1337.1  401.51  702.65      0
+  1073741824     268435456     float     sum      -1   2576.0  416.83  729.45      0   2573.7  417.19  730.09      0
+  2147483648     536870912     float     sum      -1   4592.5  467.60  818.30      0   4594.8  467.37  817.90      0
+  4294967296    1073741824     float     sum      -1   9064.7  473.81  829.18      0   9070.7  473.50  828.63      0
+  8589934592    2147483648     float     sum      -1    17990  477.48  835.59      0    17980  477.75  836.05      0
+ 17179869184    4294967296     float     sum      -1    35756  480.47  840.83      0    35756  480.47  840.82      0
+# Out of bounds values : 0 OK
+# Avg bus bandwidth    : 233.857 
+#
+# Collective test concluded: all_reduce_perf
+```
+
+</details>
+</br>
+
+<details>
+<summary>2 B300x8 DOKS Workers</summary>
+
+``` bash
+# kubectl apply -f nvidia-mn-doks/nccl-test-2-nodes-b300x8.yaml
+mpijob.kubeflow.org/mpi-multus-b300x8 created
+
+# kubectl delete mpijob mpi-multus-b300x8
+
+# kubectl get pods -o wide
+NAME                               READY   STATUS    RESTARTS   AGE   IP             NODE                       NOMINATED NODE   READINESS GATES
+mpi-multus-b300x8-launcher-w942n   1/1     Running   0          55s   10.133.0.105   rs-mn-cpu-pool-37xu9d      <none>           <none>
+mpi-multus-b300x8-worker-0         1/1     Running   0          55s   10.133.0.211   rs-mn-b300x8-pool-37x4e3   <none>           <none>
+mpi-multus-b300x8-worker-1         1/1     Running   0          55s   10.133.1.188   rs-mn-b300x8-pool-37x4e8   <none>           <none>
+
+# kubectl logs -f mpi-multus-b300x8-launcher-w942n
+Warning: Permanently added '[mpi-multus-b300x8-worker-1.mpi-multus-b300x8.default.svc]:2222' (ED25519) to the list of known hosts.
+Warning: Permanently added '[mpi-multus-b300x8-worker-0.mpi-multus-b300x8.default.svc]:2222' (ED25519) to the list of known hosts.
+# Collective test starting: all_reduce_perf
+# nThread 1 nGpus 1 minBytes 8 maxBytes 17179869184 step: 2(factor) warmup iters: 5 iters: 100 agg iters: 1 validation: 1 graph: 0
+#
+# Using devices
+#  Rank  0 Group  0 Pid    163 on mpi-multus-b300x8-worker-0 device  0 [0000:85:00] NVIDIA B300 SXM6 PC
+#  Rank  1 Group  0 Pid    164 on mpi-multus-b300x8-worker-0 device  1 [0000:8d:00] NVIDIA B300 SXM6 PC
+#  Rank  2 Group  0 Pid    165 on mpi-multus-b300x8-worker-0 device  2 [0000:95:00] NVIDIA B300 SXM6 PC
+#  Rank  3 Group  0 Pid    166 on mpi-multus-b300x8-worker-0 device  3 [0000:9d:00] NVIDIA B300 SXM6 PC
+#  Rank  4 Group  0 Pid    169 on mpi-multus-b300x8-worker-0 device  4 [0000:a5:00] NVIDIA B300 SXM6 PC
+#  Rank  5 Group  0 Pid    172 on mpi-multus-b300x8-worker-0 device  5 [0000:ad:00] NVIDIA B300 SXM6 PC
+#  Rank  6 Group  0 Pid    174 on mpi-multus-b300x8-worker-0 device  6 [0000:b5:00] NVIDIA B300 SXM6 PC
+#  Rank  7 Group  0 Pid    178 on mpi-multus-b300x8-worker-0 device  7 [0000:bd:00] NVIDIA B300 SXM6 PC
+#  Rank  8 Group  0 Pid    163 on mpi-multus-b300x8-worker-1 device  0 [0000:85:00] NVIDIA B300 SXM6 PC
+#  Rank  9 Group  0 Pid    164 on mpi-multus-b300x8-worker-1 device  1 [0000:8d:00] NVIDIA B300 SXM6 PC
+#  Rank 10 Group  0 Pid    165 on mpi-multus-b300x8-worker-1 device  2 [0000:95:00] NVIDIA B300 SXM6 PC
+#  Rank 11 Group  0 Pid    166 on mpi-multus-b300x8-worker-1 device  3 [0000:9d:00] NVIDIA B300 SXM6 PC
+#  Rank 12 Group  0 Pid    168 on mpi-multus-b300x8-worker-1 device  4 [0000:a5:00] NVIDIA B300 SXM6 PC
+#  Rank 13 Group  0 Pid    172 on mpi-multus-b300x8-worker-1 device  5 [0000:ad:00] NVIDIA B300 SXM6 PC
+#  Rank 14 Group  0 Pid    175 on mpi-multus-b300x8-worker-1 device  6 [0000:b5:00] NVIDIA B300 SXM6 PC
+#  Rank 15 Group  0 Pid    179 on mpi-multus-b300x8-worker-1 device  7 [0000:bd:00] NVIDIA B300 SXM6 PC
+NCCL version 2.29.7+cuda13.2
+#
+#                                                              out-of-place                       in-place          
+#       size         count      type   redop    root     time   algbw   busbw #wrong     time   algbw   busbw #wrong
+#        (B)    (elements)                               (us)  (GB/s)  (GB/s)            (us)  (GB/s)  (GB/s)       
+           8             2     float     sum      -1    38.93    0.00    0.00      0    39.60    0.00    0.00      0
+          16             4     float     sum      -1    38.75    0.00    0.00      0    38.26    0.00    0.00      0
+          32             8     float     sum      -1    38.46    0.00    0.00      0    37.94    0.00    0.00      0
+          64            16     float     sum      -1    39.04    0.00    0.00      0    53.69    0.00    0.00      0
+         128            32     float     sum      -1    39.15    0.00    0.01      0    39.34    0.00    0.01      0
+         256            64     float     sum      -1    39.98    0.01    0.01      0    40.56    0.01    0.01      0
+         512           128     float     sum      -1    40.28    0.01    0.02      0    40.22    0.01    0.02      0
+        1024           256     float     sum      -1    40.58    0.03    0.05      0    40.65    0.03    0.05      0
+        2048           512     float     sum      -1    42.38    0.05    0.09      0    42.34    0.05    0.09      0
+        4096          1024     float     sum      -1    44.71    0.09    0.17      0    44.57    0.09    0.17      0
+        8192          2048     float     sum      -1    45.48    0.18    0.34      0    46.53    0.18    0.33      0
+       16384          4096     float     sum      -1    46.12    0.36    0.67      0    46.11    0.36    0.67      0
+       32768          8192     float     sum      -1    48.19    0.68    1.27      0    47.94    0.68    1.28      0
+       65536         16384     float     sum      -1    49.91    1.31    2.46      0    49.87    1.31    2.46      0
+      131072         32768     float     sum      -1    51.46    2.55    4.78      0    51.72    2.53    4.75      0
+      262144         65536     float     sum      -1    69.07    3.80    7.12      0    69.07    3.80    7.12      0
+      524288        131072     float     sum      -1    72.32    7.25   13.59      0    72.77    7.20   13.51      0
+     1048576        262144     float     sum      -1    79.58   13.18   24.70      0    78.77   13.31   24.96      0
+     2097152        524288     float     sum      -1    94.21   22.26   41.74      0    95.15   22.04   41.33      0
+     4194304       1048576     float     sum      -1    126.2   33.25   62.34      0    126.1   33.27   62.38      0
+     8388608       2097152     float     sum      -1    138.1   60.76  113.93      0    137.2   61.16  114.67      0
+    16777216       4194304     float     sum      -1    240.3   69.81  130.90      0    240.8   69.67  130.64      0
+    33554432       8388608     float     sum      -1    283.4  118.42  222.03      0    282.4  118.81  222.77      0
+    67108864      16777216     float     sum      -1    860.3   78.01  146.27      0    344.4  194.84  365.33      0
+   134217728      33554432     float     sum      -1    544.3  246.57  462.32      0    590.4  227.33  426.24      0
+   268435456      67108864     float     sum      -1    858.8  312.57  586.07      0    833.5  322.07  603.88      0
+   536870912     134217728     float     sum      -1   1454.1  369.22  692.29      0   1434.2  374.33  701.86      0
+  1073741824     268435456     float     sum      -1   2536.1  423.38  793.83      0   2704.2  397.07  744.50      0
+  2147483648     536870912     float     sum      -1   4727.4  454.27  851.75      0   4776.3  449.61  843.02      0
+  4294967296    1073741824     float     sum      -1   9495.7  452.31  848.07      0   9201.1  466.79  875.23      0
+  8589934592    2147483648     float     sum      -1    18436  465.93  873.61      0    18204  471.88  884.77      0
+ 17179869184    4294967296     float     sum      -1    36106  475.82  892.17      0    36235  474.12  888.97      0
+# Out of bounds values : 0 OK
+# Avg bus bandwidth    : 214.588 
+#
+# Collective test concluded: all_reduce_perf
+```
+
+</details>
+</br>
+
+<details>
+<summary>2 B300x8 DOKS Workers - 8 Rails </summary>
+
+
+``` bash
+# kubectl apply -f nvidia-mn-doks/nccl-test-2-nodes-b300x-8rails.yaml
+# kubectl delete mpijob mpi-multus-b300x8
+
+# kubectl logs -f mpi-multus-b300x8-launcher-w988l
+Warning: Permanently added '[mpi-multus-b300x8-worker-0.mpi-multus-b300x8.default.svc]:2222' (ED25519) to the list of known hosts.
+Warning: Permanently added '[mpi-multus-b300x8-worker-1.mpi-multus-b300x8.default.svc]:2222' (ED25519) to the list of known hosts.
+# Collective test starting: all_reduce_perf
+# nThread 1 nGpus 1 minBytes 8 maxBytes 17179869184 step: 2(factor) warmup iters: 5 iters: 100 agg iters: 1 validation: 1 graph: 0
+#
+# Using devices
+#  Rank  0 Group  0 Pid    166 on mpi-multus-b300x8-worker-0 device  0 [0000:85:00] NVIDIA B300 SXM6 PC
+#  Rank  1 Group  0 Pid    167 on mpi-multus-b300x8-worker-0 device  1 [0000:8d:00] NVIDIA B300 SXM6 PC
+#  Rank  2 Group  0 Pid    168 on mpi-multus-b300x8-worker-0 device  2 [0000:95:00] NVIDIA B300 SXM6 PC
+#  Rank  3 Group  0 Pid    169 on mpi-multus-b300x8-worker-0 device  3 [0000:9d:00] NVIDIA B300 SXM6 PC
+#  Rank  4 Group  0 Pid    172 on mpi-multus-b300x8-worker-0 device  4 [0000:a5:00] NVIDIA B300 SXM6 PC
+#  Rank  5 Group  0 Pid    175 on mpi-multus-b300x8-worker-0 device  5 [0000:ad:00] NVIDIA B300 SXM6 PC
+#  Rank  6 Group  0 Pid    177 on mpi-multus-b300x8-worker-0 device  6 [0000:b5:00] NVIDIA B300 SXM6 PC
+#  Rank  7 Group  0 Pid    182 on mpi-multus-b300x8-worker-0 device  7 [0000:bd:00] NVIDIA B300 SXM6 PC
+#  Rank  8 Group  0 Pid    164 on mpi-multus-b300x8-worker-1 device  0 [0000:85:00] NVIDIA B300 SXM6 PC
+#  Rank  9 Group  0 Pid    165 on mpi-multus-b300x8-worker-1 device  1 [0000:8d:00] NVIDIA B300 SXM6 PC
+#  Rank 10 Group  0 Pid    166 on mpi-multus-b300x8-worker-1 device  2 [0000:95:00] NVIDIA B300 SXM6 PC
+#  Rank 11 Group  0 Pid    167 on mpi-multus-b300x8-worker-1 device  3 [0000:9d:00] NVIDIA B300 SXM6 PC
+#  Rank 12 Group  0 Pid    169 on mpi-multus-b300x8-worker-1 device  4 [0000:a5:00] NVIDIA B300 SXM6 PC
+#  Rank 13 Group  0 Pid    173 on mpi-multus-b300x8-worker-1 device  5 [0000:ad:00] NVIDIA B300 SXM6 PC
+#  Rank 14 Group  0 Pid    175 on mpi-multus-b300x8-worker-1 device  6 [0000:b5:00] NVIDIA B300 SXM6 PC
+#  Rank 15 Group  0 Pid    180 on mpi-multus-b300x8-worker-1 device  7 [0000:bd:00] NVIDIA B300 SXM6 PC
+NCCL version 2.29.7+cuda13.2
+#
+#                                                              out-of-place                       in-place          
+#       size         count      type   redop    root     time   algbw   busbw #wrong     time   algbw   busbw #wrong
+#        (B)    (elements)                               (us)  (GB/s)  (GB/s)            (us)  (GB/s)  (GB/s)       
+           8             2     float     sum      -1    39.63    0.00    0.00      0    39.54    0.00    0.00      0
+          16             4     float     sum      -1    39.29    0.00    0.00      0    40.56    0.00    0.00      0
+          32             8     float     sum      -1    49.80    0.00    0.00      0    39.75    0.00    0.00      0
+          64            16     float     sum      -1    40.70    0.00    0.00      0    39.01    0.00    0.00      0
+         128            32     float     sum      -1    40.21    0.00    0.01      0    40.75    0.00    0.01      0
+         256            64     float     sum      -1    41.60    0.01    0.01      0    40.63    0.01    0.01      0
+         512           128     float     sum      -1    42.09    0.01    0.02      0    41.16    0.01    0.02      0
+        1024           256     float     sum      -1    42.66    0.02    0.05      0    41.44    0.02    0.05      0
+        2048           512     float     sum      -1    42.85    0.05    0.09      0    43.02    0.05    0.09      0
+        4096          1024     float     sum      -1    45.17    0.09    0.17      0    44.82    0.09    0.17      0
+        8192          2048     float     sum      -1    47.04    0.17    0.33      0    47.05    0.17    0.33      0
+       16384          4096     float     sum      -1    47.67    0.34    0.64      0    47.14    0.35    0.65      0
+       32768          8192     float     sum      -1    49.26    0.67    1.25      0    49.08    0.67    1.25      0
+       65536         16384     float     sum      -1    50.34    1.30    2.44      0    49.78    1.32    2.47      0
+      131072         32768     float     sum      -1    54.22    2.42    4.53      0    54.06    2.42    4.55      0
+      262144         65536     float     sum      -1    70.23    3.73    7.00      0    68.67    3.82    7.16      0
+      524288        131072     float     sum      -1    77.18    6.79   12.74      0    75.73    6.92   12.98      0
+     1048576        262144     float     sum      -1    128.0    8.19   15.36      0    89.61   11.70   21.94      0
+     2097152        524288     float     sum      -1    640.1    3.28    6.14      0    131.2   15.99   29.98      0
+     4194304       1048576     float     sum      -1    128.5   32.64   61.19      0    126.9   33.06   61.99      0
+     8388608       2097152     float     sum      -1    143.0   58.66  109.99      0    141.8   59.16  110.93      0
+    16777216       4194304     float     sum      -1    183.7   91.32  171.23      0    179.8   93.33  175.00      0
+    33554432       8388608     float     sum      -1    265.4  126.41  237.02      0    263.2  127.50  239.06      0
+    67108864      16777216     float     sum      -1    560.8  119.67  224.38      0    397.6  168.79  316.48      0
+   134217728      33554432     float     sum      -1    634.1  211.68  396.89      0    632.8  212.11  397.70      0
+   268435456      67108864     float     sum      -1    999.6  268.53  503.50      0    999.9  268.46  503.37      0
+   536870912     134217728     float     sum      -1   1678.9  319.78  599.59      0   1688.5  317.96  596.17      0
+  1073741824     268435456     float     sum      -1   3064.9  350.33  656.87      0   3104.7  345.85  648.47      0
+  2147483648     536870912     float     sum      -1   5926.9  362.33  679.36      0   5881.5  365.12  684.60      0
+  4294967296    1073741824     float     sum      -1    11297  380.19  712.86      0    11274  380.95  714.29      0
+  8589934592    2147483648     float     sum      -1    22435  382.89  717.92      0    22350  384.34  720.63      0
+ 17179869184    4294967296     float     sum      -1    44373  387.17  725.94      0    44509  385.99  723.72      0
+# Out of bounds values : 0 OK
+# Avg bus bandwidth    : 184.712 
+#
+# Collective test concluded: all_reduce_perf
+```
+
+</details>
+</br>
+
+
+<details>
+<summary>3 B300x8 DOKS Workers</summary>
+
+
+``` bash
+# kubectl apply -f nvidia-mn-doks/nccl-test-3-nodes-b300x8.yaml
+mpijob.kubeflow.org/mpi-multus-b300x8 created
+
+# kubectl delete mpijob mpi-multus-b300x8
+
+# # kubectl get pods -o wide
+NAME                               READY   STATUS    RESTARTS   AGE   IP             NODE                       NOMINATED NODE   READINESS GATES
+mpi-multus-b300x8-launcher-grbll   1/1     Running   0          29s   10.133.0.47    rs-mn-cpu-pool-37xu9d      <none>           <none>
+mpi-multus-b300x8-worker-0         1/1     Running   0          29s   10.133.0.252   rs-mn-b300x8-pool-37x4e3   <none>           <none>
+mpi-multus-b300x8-worker-1         1/1     Running   0          29s   10.133.1.121   rs-mn-b300x8-pool-37x4en   <none>           <none>
+mpi-multus-b300x8-worker-2         1/1     Running   0          29s   10.133.1.200   rs-mn-b300x8-pool-37x4e8   <none>           <none>
+
+# kubectl logs -f mpi-multus-b300x8-launcher-grbll
+Warning: Permanently added '[mpi-multus-b300x8-worker-2.mpi-multus-b300x8.default.svc]:2222' (ED25519) to the list of known hosts.
+Warning: Permanently added '[mpi-multus-b300x8-worker-1.mpi-multus-b300x8.default.svc]:2222' (ED25519) to the list of known hosts.
+Warning: Permanently added '[mpi-multus-b300x8-worker-0.mpi-multus-b300x8.default.svc]:2222' (ED25519) to the list of known hosts.
+# Collective test starting: all_reduce_perf
+# nThread 1 nGpus 1 minBytes 8 maxBytes 17179869184 step: 2(factor) warmup iters: 5 iters: 100 agg iters: 1 validation: 1 graph: 0
+#
+# Using devices
+#  Rank  0 Group  0 Pid    163 on mpi-multus-b300x8-worker-0 device  0 [0000:85:00] NVIDIA B300 SXM6 PC
+#  Rank  1 Group  0 Pid    164 on mpi-multus-b300x8-worker-0 device  1 [0000:8d:00] NVIDIA B300 SXM6 PC
+#  Rank  2 Group  0 Pid    165 on mpi-multus-b300x8-worker-0 device  2 [0000:95:00] NVIDIA B300 SXM6 PC
+#  Rank  3 Group  0 Pid    166 on mpi-multus-b300x8-worker-0 device  3 [0000:9d:00] NVIDIA B300 SXM6 PC
+#  Rank  4 Group  0 Pid    169 on mpi-multus-b300x8-worker-0 device  4 [0000:a5:00] NVIDIA B300 SXM6 PC
+#  Rank  5 Group  0 Pid    172 on mpi-multus-b300x8-worker-0 device  5 [0000:ad:00] NVIDIA B300 SXM6 PC
+#  Rank  6 Group  0 Pid    176 on mpi-multus-b300x8-worker-0 device  6 [0000:b5:00] NVIDIA B300 SXM6 PC
+#  Rank  7 Group  0 Pid    179 on mpi-multus-b300x8-worker-0 device  7 [0000:bd:00] NVIDIA B300 SXM6 PC
+#  Rank  8 Group  0 Pid    167 on mpi-multus-b300x8-worker-1 device  0 [0000:85:00] NVIDIA B300 SXM6 PC
+#  Rank  9 Group  0 Pid    168 on mpi-multus-b300x8-worker-1 device  1 [0000:8d:00] NVIDIA B300 SXM6 PC
+#  Rank 10 Group  0 Pid    169 on mpi-multus-b300x8-worker-1 device  2 [0000:95:00] NVIDIA B300 SXM6 PC
+#  Rank 11 Group  0 Pid    170 on mpi-multus-b300x8-worker-1 device  3 [0000:9d:00] NVIDIA B300 SXM6 PC
+#  Rank 12 Group  0 Pid    172 on mpi-multus-b300x8-worker-1 device  4 [0000:a5:00] NVIDIA B300 SXM6 PC
+#  Rank 13 Group  0 Pid    176 on mpi-multus-b300x8-worker-1 device  5 [0000:ad:00] NVIDIA B300 SXM6 PC
+#  Rank 14 Group  0 Pid    178 on mpi-multus-b300x8-worker-1 device  6 [0000:b5:00] NVIDIA B300 SXM6 PC
+#  Rank 15 Group  0 Pid    181 on mpi-multus-b300x8-worker-1 device  7 [0000:bd:00] NVIDIA B300 SXM6 PC
+#  Rank 16 Group  0 Pid    166 on mpi-multus-b300x8-worker-2 device  0 [0000:85:00] NVIDIA B300 SXM6 PC
+#  Rank 17 Group  0 Pid    167 on mpi-multus-b300x8-worker-2 device  1 [0000:8d:00] NVIDIA B300 SXM6 PC
+#  Rank 18 Group  0 Pid    168 on mpi-multus-b300x8-worker-2 device  2 [0000:95:00] NVIDIA B300 SXM6 PC
+#  Rank 19 Group  0 Pid    169 on mpi-multus-b300x8-worker-2 device  3 [0000:9d:00] NVIDIA B300 SXM6 PC
+#  Rank 20 Group  0 Pid    171 on mpi-multus-b300x8-worker-2 device  4 [0000:a5:00] NVIDIA B300 SXM6 PC
+#  Rank 21 Group  0 Pid    176 on mpi-multus-b300x8-worker-2 device  5 [0000:ad:00] NVIDIA B300 SXM6 PC
+#  Rank 22 Group  0 Pid    178 on mpi-multus-b300x8-worker-2 device  6 [0000:b5:00] NVIDIA B300 SXM6 PC
+#  Rank 23 Group  0 Pid    181 on mpi-multus-b300x8-worker-2 device  7 [0000:bd:00] NVIDIA B300 SXM6 PC
+NCCL version 2.29.7+cuda13.2
+#
+#                                                              out-of-place                       in-place          
+#       size         count      type   redop    root     time   algbw   busbw #wrong     time   algbw   busbw #wrong
+#        (B)    (elements)                               (us)  (GB/s)  (GB/s)            (us)  (GB/s)  (GB/s)       
+           8             2     float     sum      -1    50.15    0.00    0.00      0    49.20    0.00    0.00      0
+          16             4     float     sum      -1    48.41    0.00    0.00      0    48.75    0.00    0.00      0
+          32             8     float     sum      -1    48.79    0.00    0.00      0    48.76    0.00    0.00      0
+          64            16     float     sum      -1    48.98    0.00    0.00      0    49.80    0.00    0.00      0
+         128            32     float     sum      -1    49.88    0.00    0.00      0    50.48    0.00    0.00      0
+         256            64     float     sum      -1    61.85    0.00    0.01      0    50.28    0.01    0.01      0
+         512           128     float     sum      -1    63.72    0.01    0.02      0    50.25    0.01    0.02      0
+        1024           256     float     sum      -1    50.76    0.02    0.04      0    50.60    0.02    0.04      0
+        2048           512     float     sum      -1    67.26    0.03    0.06      0    53.02    0.04    0.07      0
+        4096          1024     float     sum      -1    57.76    0.07    0.14      0    57.41    0.07    0.14      0
+        8192          2048     float     sum      -1    58.92    0.14    0.27      0    58.84    0.14    0.27      0
+       16384          4096     float     sum      -1    60.65    0.27    0.52      0    59.63    0.27    0.53      0
+       32768          8192     float     sum      -1    62.05    0.53    1.01      0    73.03    0.45    0.86      0
+       65536         16384     float     sum      -1    63.95    1.02    1.96      0    63.31    1.04    1.98      0
+      131072         32768     float     sum      -1    87.35    1.50    2.88      0    86.42    1.52    2.91      0
+      262144         65536     float     sum      -1    90.20    2.91    5.57      0    89.88    2.92    5.59      0
+      524288        131072     float     sum      -1    95.18    5.51   10.56      0    94.26    5.56   10.66      0
+     1048576        262144     float     sum      -1    101.5   10.33   19.79      0    101.4   10.35   19.83      0
+     2097152        524288     float     sum      -1    116.8   17.96   34.42      0    116.5   18.01   34.51      0
+     4194304       1048576     float     sum      -1    160.7   26.11   50.04      0    157.2   26.68   51.13      0
+     8388608       2097152     float     sum      -1    173.7   48.28   92.54      0    172.4   48.65   93.25      0
+    16777216       4194304     float     sum      -1    341.4   49.14   94.19      0    338.8   49.51   94.90      0
+    33554432       8388608     float     sum      -1    392.3   85.54  163.95      0    405.5   82.76  158.62      0
+    67108864      16777216     float     sum      -1    454.9  147.53  282.77      0    431.4  155.57  298.17      0
+   134217728      33554432     float     sum      -1    617.7  217.29  416.48      0    623.6  215.24  412.54      0
+   268435456      67108864     float     sum      -1   1024.3  262.07  502.30      0   1019.5  263.30  504.66      0
+   536870912     134217728     float     sum      -1   1642.0  326.97  626.69      0   1635.6  328.24  629.12      0
+  1073741824     268435456     float     sum      -1   3149.4  340.94  653.47      0   3187.6  336.85  645.63      0
+  2147483648     536870912     float     sum      -1   6295.6  341.11  653.79      0   6152.3  349.05  669.02      0
+  4294967296    1073741824     float     sum      -1    12147  353.58  677.70      0    12222  351.42  673.55      0
+  8589934592    2147483648     float     sum      -1    24182  355.21  680.83      0    24481  350.88  672.53      0
+ 17179869184    4294967296     float     sum      -1    48021  357.76  685.70      0    48109  357.10  684.45      0
+# Out of bounds values : 0 OK
+# Avg bus bandwidth    : 176.917 
+#
+# Collective test concluded: all_reduce_perf
+```
+
+</details>
+</br>
+
+<details>
+<summary>4 B300x8 DOKS Workers</summary>
+
+``` bash
+# kubectl apply -f nvidia-mn-doks/nccl-test-4-nodes-b300x8.yaml
+mpijob.kubeflow.org/mpi-multus-b300x8 created
+
+# kubectl delete mpijob mpi-multus-b300x8
+
+## kubectl get pods -o wide
+NAME                               READY   STATUS    RESTARTS   AGE   IP             NODE                       NOMINATED NODE   READINESS GATES
+mpi-multus-b300x8-launcher-2hgxf    1/1     Running   0          18s   10.133.0.51    rs-mn-cpu-pool-37xu9d      <none>           <none>
+mpi-multus-b300x8-worker-0         1/1     Running   0          18s   10.133.1.99    rs-mn-b300x8-pool-37x4en   <none>           <none>
+mpi-multus-b300x8-worker-1         0/1     Running   0          18s   10.133.0.203   rs-mn-b300x8-pool-37x4e3   <none>           <none>
+mpi-multus-b300x8-worker-2         0/1     Running   0          18s   10.133.2.121   rs-mn-b300x8-pool-37orfo   <none>           <none>
+mpi-multus-b300x8-worker-3         0/1     Running   0          18s   10.133.1.216   rs-mn-b300x8-pool-37x4e8   <none>           <none>
+
+# kubectl logs -f mpi-multus-b300x8-launcher-2hgxf 
+Warning: Permanently added '[mpi-multus-b300x8-worker-1.mpi-multus-b300x8.default.svc]:2222' (ED25519) to the list of known hosts.
+Warning: Permanently added '[mpi-multus-b300x8-worker-3.mpi-multus-b300x8.default.svc]:2222' (ED25519) to the list of known hosts.
+Warning: Permanently added '[mpi-multus-b300x8-worker-2.mpi-multus-b300x8.default.svc]:2222' (ED25519) to the list of known hosts.
+Warning: Permanently added '[mpi-multus-b300x8-worker-0.mpi-multus-b300x8.default.svc]:2222' (ED25519) to the list of known hosts.
+# Collective test starting: all_reduce_perf
+# nThread 1 nGpus 1 minBytes 8 maxBytes 17179869184 step: 2(factor) warmup iters: 5 iters: 100 agg iters: 1 validation: 1 graph: 0
+#
+# Using devices
+#  Rank  0 Group  0 Pid    165 on mpi-multus-b300x8-worker-0 device  0 [0000:85:00] NVIDIA B300 SXM6 PC
+#  Rank  1 Group  0 Pid    166 on mpi-multus-b300x8-worker-0 device  1 [0000:8d:00] NVIDIA B300 SXM6 PC
+#  Rank  2 Group  0 Pid    167 on mpi-multus-b300x8-worker-0 device  2 [0000:95:00] NVIDIA B300 SXM6 PC
+#  Rank  3 Group  0 Pid    168 on mpi-multus-b300x8-worker-0 device  3 [0000:9d:00] NVIDIA B300 SXM6 PC
+#  Rank  4 Group  0 Pid    171 on mpi-multus-b300x8-worker-0 device  4 [0000:a5:00] NVIDIA B300 SXM6 PC
+#  Rank  5 Group  0 Pid    174 on mpi-multus-b300x8-worker-0 device  5 [0000:ad:00] NVIDIA B300 SXM6 PC
+#  Rank  6 Group  0 Pid    177 on mpi-multus-b300x8-worker-0 device  6 [0000:b5:00] NVIDIA B300 SXM6 PC
+#  Rank  7 Group  0 Pid    181 on mpi-multus-b300x8-worker-0 device  7 [0000:bd:00] NVIDIA B300 SXM6 PC
+#  Rank  8 Group  0 Pid    163 on mpi-multus-b300x8-worker-1 device  0 [0000:85:00] NVIDIA B300 SXM6 PC
+#  Rank  9 Group  0 Pid    164 on mpi-multus-b300x8-worker-1 device  1 [0000:8d:00] NVIDIA B300 SXM6 PC
+#  Rank 10 Group  0 Pid    165 on mpi-multus-b300x8-worker-1 device  2 [0000:95:00] NVIDIA B300 SXM6 PC
+#  Rank 11 Group  0 Pid    166 on mpi-multus-b300x8-worker-1 device  3 [0000:9d:00] NVIDIA B300 SXM6 PC
+#  Rank 12 Group  0 Pid    169 on mpi-multus-b300x8-worker-1 device  4 [0000:a5:00] NVIDIA B300 SXM6 PC
+#  Rank 13 Group  0 Pid    172 on mpi-multus-b300x8-worker-1 device  5 [0000:ad:00] NVIDIA B300 SXM6 PC
+#  Rank 14 Group  0 Pid    175 on mpi-multus-b300x8-worker-1 device  6 [0000:b5:00] NVIDIA B300 SXM6 PC
+#  Rank 15 Group  0 Pid    178 on mpi-multus-b300x8-worker-1 device  7 [0000:bd:00] NVIDIA B300 SXM6 PC
+#  Rank 16 Group  0 Pid    164 on mpi-multus-b300x8-worker-2 device  0 [0000:85:00] NVIDIA B300 SXM6 PC
+#  Rank 17 Group  0 Pid    165 on mpi-multus-b300x8-worker-2 device  1 [0000:8d:00] NVIDIA B300 SXM6 PC
+#  Rank 18 Group  0 Pid    166 on mpi-multus-b300x8-worker-2 device  2 [0000:95:00] NVIDIA B300 SXM6 PC
+#  Rank 19 Group  0 Pid    167 on mpi-multus-b300x8-worker-2 device  3 [0000:9d:00] NVIDIA B300 SXM6 PC
+#  Rank 20 Group  0 Pid    169 on mpi-multus-b300x8-worker-2 device  4 [0000:a5:00] NVIDIA B300 SXM6 PC
+#  Rank 21 Group  0 Pid    173 on mpi-multus-b300x8-worker-2 device  5 [0000:ad:00] NVIDIA B300 SXM6 PC
+#  Rank 22 Group  0 Pid    175 on mpi-multus-b300x8-worker-2 device  6 [0000:b5:00] NVIDIA B300 SXM6 PC
+#  Rank 23 Group  0 Pid    178 on mpi-multus-b300x8-worker-2 device  7 [0000:bd:00] NVIDIA B300 SXM6 PC
+#  Rank 24 Group  0 Pid    116 on mpi-multus-b300x8-worker-3 device  0 [0000:85:00] NVIDIA B300 SXM6 PC
+#  Rank 25 Group  0 Pid    117 on mpi-multus-b300x8-worker-3 device  1 [0000:8d:00] NVIDIA B300 SXM6 PC
+#  Rank 26 Group  0 Pid    118 on mpi-multus-b300x8-worker-3 device  2 [0000:95:00] NVIDIA B300 SXM6 PC
+#  Rank 27 Group  0 Pid    119 on mpi-multus-b300x8-worker-3 device  3 [0000:9d:00] NVIDIA B300 SXM6 PC
+#  Rank 28 Group  0 Pid    121 on mpi-multus-b300x8-worker-3 device  4 [0000:a5:00] NVIDIA B300 SXM6 PC
+#  Rank 29 Group  0 Pid    124 on mpi-multus-b300x8-worker-3 device  5 [0000:ad:00] NVIDIA B300 SXM6 PC
+#  Rank 30 Group  0 Pid    127 on mpi-multus-b300x8-worker-3 device  6 [0000:b5:00] NVIDIA B300 SXM6 PC
+#  Rank 31 Group  0 Pid    132 on mpi-multus-b300x8-worker-3 device  7 [0000:bd:00] NVIDIA B300 SXM6 PC
+NCCL version 2.29.7+cuda13.2
+#
+#                                                              out-of-place                       in-place          
+#       size         count      type   redop    root     time   algbw   busbw #wrong     time   algbw   busbw #wrong
+#        (B)    (elements)                               (us)  (GB/s)  (GB/s)            (us)  (GB/s)  (GB/s)       
+           8             2     float     sum      -1    49.90    0.00    0.00      0    49.26    0.00    0.00      0
+          16             4     float     sum      -1    49.79    0.00    0.00      0    48.71    0.00    0.00      0
+          32             8     float     sum      -1    49.40    0.00    0.00      0    49.51    0.00    0.00      0
+          64            16     float     sum      -1    49.69    0.00    0.00      0    49.54    0.00    0.00      0
+         128            32     float     sum      -1    50.05    0.00    0.00      0    49.87    0.00    0.00      0
+         256            64     float     sum      -1    50.43    0.01    0.01      0    50.84    0.01    0.01      0
+         512           128     float     sum      -1    51.22    0.01    0.02      0    52.08    0.01    0.02      0
+        1024           256     float     sum      -1    51.66    0.02    0.04      0    51.90    0.02    0.04      0
+        2048           512     float     sum      -1    53.76    0.04    0.07      0    54.09    0.04    0.07      0
+        4096          1024     float     sum      -1    59.00    0.07    0.13      0    58.43    0.07    0.14      0
+        8192          2048     float     sum      -1    60.52    0.14    0.26      0    59.64    0.14    0.27      0
+       16384          4096     float     sum      -1    61.69    0.27    0.51      0    61.14    0.27    0.52      0
+       32768          8192     float     sum      -1    63.21    0.52    1.00      0    62.91    0.52    1.01      0
+       65536         16384     float     sum      -1    66.95    0.98    1.90      0    66.77    0.98    1.90      0
+      131072         32768     float     sum      -1    70.05    1.87    3.63      0    68.23    1.92    3.72      0
+      262144         65536     float     sum      -1    93.18    2.81    5.45      0    92.42    2.84    5.50      0
+      524288        131072     float     sum      -1    95.29    5.50   10.66      0    95.22    5.51   10.67      0
+     1048576        262144     float     sum      -1    106.5    9.85   19.08      0    120.5    8.70   16.86      0
+     2097152        524288     float     sum      -1    153.3   13.68   26.50      0    118.3   17.72   34.34      0
+     4194304       1048576     float     sum      -1    163.8   25.60   49.60      0    166.8   25.14   48.71      0
+     8388608       2097152     float     sum      -1    246.3   34.05   65.98      0    237.1   35.39   68.56      0
+    16777216       4194304     float     sum      -1    444.4   37.75   73.14      0    439.9   38.14   73.90      0
+    33554432       8388608     float     sum      -1    458.8   73.14  141.71      0    461.8   72.67  140.79      0
+    67108864      16777216     float     sum      -1    540.1  124.26  240.76      0    539.6  124.36  240.94      0
+   134217728      33554432     float     sum      -1    677.3  198.17  383.95      0    739.7  181.44  351.55      0
+   268435456      67108864     float     sum      -1   1060.1  253.22  490.62      0   1063.9  252.31  488.85      0
+   536870912     134217728     float     sum      -1   1904.9  281.83  546.05      0   1982.4  270.82  524.72      0
+  1073741824     268435456     float     sum      -1   3213.4  334.15  647.41      0   3251.3  330.25  639.86      0
+  2147483648     536870912     float     sum      -1   6197.9  346.49  671.32      0   6218.1  345.36  669.14      0
+  4294967296    1073741824     float     sum      -1    12307  348.98  676.15      0    12265  350.18  678.47      0
+  8589934592    2147483648     float     sum      -1    24324  353.14  684.21      0    24406  351.95  681.91      0
+ 17179869184    4294967296     float     sum      -1    48392  355.01  687.84      0    48354  355.29  688.38      0
+# Out of bounds values : 0 OK
+# Avg bus bandwidth    : 168.732 
+#
+# Collective test concluded: all_reduce_perf
+```
+
+</details>
+</br>
+
+<details>
+<summary>4 B300x8 DOKS Workers - 1 Rail </summary>
+
+``` bash
+# kubectl apply -f nvidia-mn-doks/nccl-test-4-nodes-b300x8-1rail.yaml
+# kubectl delete mpijob mpi-multus-b300x8
+
+# kubectl logs -f mpi-multus-b300x8-launcher-4fjjx
+Warning: Permanently added '[mpi-multus-b300x8-worker-3.mpi-multus-b300x8.default.svc]:2222' (ED25519) to the list of known hosts.
+Warning: Permanently added '[mpi-multus-b300x8-worker-2.mpi-multus-b300x8.default.svc]:2222' (ED25519) to the list of known hosts.
+Warning: Permanently added '[mpi-multus-b300x8-worker-0.mpi-multus-b300x8.default.svc]:2222' (ED25519) to the list of known hosts.
+Warning: Permanently added '[mpi-multus-b300x8-worker-1.mpi-multus-b300x8.default.svc]:2222' (ED25519) to the list of known hosts.
+# Collective test starting: all_reduce_perf
+# nThread 1 nGpus 1 minBytes 8 maxBytes 17179869184 step: 2(factor) warmup iters: 5 iters: 100 agg iters: 1 validation: 1 graph: 0
+#
+# Using devices
+#  Rank  0 Group  0 Pid    164 on mpi-multus-b300x8-worker-0 device  0 [0000:85:00] NVIDIA B300 SXM6 PC
+#  Rank  1 Group  0 Pid    165 on mpi-multus-b300x8-worker-0 device  1 [0000:8d:00] NVIDIA B300 SXM6 PC
+#  Rank  2 Group  0 Pid    166 on mpi-multus-b300x8-worker-0 device  2 [0000:95:00] NVIDIA B300 SXM6 PC
+#  Rank  3 Group  0 Pid    167 on mpi-multus-b300x8-worker-0 device  3 [0000:9d:00] NVIDIA B300 SXM6 PC
+#  Rank  4 Group  0 Pid    171 on mpi-multus-b300x8-worker-0 device  4 [0000:a5:00] NVIDIA B300 SXM6 PC
+#  Rank  5 Group  0 Pid    173 on mpi-multus-b300x8-worker-0 device  5 [0000:ad:00] NVIDIA B300 SXM6 PC
+#  Rank  6 Group  0 Pid    177 on mpi-multus-b300x8-worker-0 device  6 [0000:b5:00] NVIDIA B300 SXM6 PC
+#  Rank  7 Group  0 Pid    179 on mpi-multus-b300x8-worker-0 device  7 [0000:bd:00] NVIDIA B300 SXM6 PC
+#  Rank  8 Group  0 Pid    164 on mpi-multus-b300x8-worker-1 device  0 [0000:85:00] NVIDIA B300 SXM6 PC
+#  Rank  9 Group  0 Pid    165 on mpi-multus-b300x8-worker-1 device  1 [0000:8d:00] NVIDIA B300 SXM6 PC
+#  Rank 10 Group  0 Pid    166 on mpi-multus-b300x8-worker-1 device  2 [0000:95:00] NVIDIA B300 SXM6 PC
+#  Rank 11 Group  0 Pid    167 on mpi-multus-b300x8-worker-1 device  3 [0000:9d:00] NVIDIA B300 SXM6 PC
+#  Rank 12 Group  0 Pid    170 on mpi-multus-b300x8-worker-1 device  4 [0000:a5:00] NVIDIA B300 SXM6 PC
+#  Rank 13 Group  0 Pid    174 on mpi-multus-b300x8-worker-1 device  5 [0000:ad:00] NVIDIA B300 SXM6 PC
+#  Rank 14 Group  0 Pid    177 on mpi-multus-b300x8-worker-1 device  6 [0000:b5:00] NVIDIA B300 SXM6 PC
+#  Rank 15 Group  0 Pid    180 on mpi-multus-b300x8-worker-1 device  7 [0000:bd:00] NVIDIA B300 SXM6 PC
+#  Rank 16 Group  0 Pid    166 on mpi-multus-b300x8-worker-2 device  0 [0000:85:00] NVIDIA B300 SXM6 PC
+#  Rank 17 Group  0 Pid    167 on mpi-multus-b300x8-worker-2 device  1 [0000:8d:00] NVIDIA B300 SXM6 PC
+#  Rank 18 Group  0 Pid    168 on mpi-multus-b300x8-worker-2 device  2 [0000:95:00] NVIDIA B300 SXM6 PC
+#  Rank 19 Group  0 Pid    169 on mpi-multus-b300x8-worker-2 device  3 [0000:9d:00] NVIDIA B300 SXM6 PC
+#  Rank 20 Group  0 Pid    171 on mpi-multus-b300x8-worker-2 device  4 [0000:a5:00] NVIDIA B300 SXM6 PC
+#  Rank 21 Group  0 Pid    175 on mpi-multus-b300x8-worker-2 device  5 [0000:ad:00] NVIDIA B300 SXM6 PC
+#  Rank 22 Group  0 Pid    178 on mpi-multus-b300x8-worker-2 device  6 [0000:b5:00] NVIDIA B300 SXM6 PC
+#  Rank 23 Group  0 Pid    182 on mpi-multus-b300x8-worker-2 device  7 [0000:bd:00] NVIDIA B300 SXM6 PC
+#  Rank 24 Group  0 Pid    168 on mpi-multus-b300x8-worker-3 device  0 [0000:85:00] NVIDIA B300 SXM6 PC
+#  Rank 25 Group  0 Pid    169 on mpi-multus-b300x8-worker-3 device  1 [0000:8d:00] NVIDIA B300 SXM6 PC
+#  Rank 26 Group  0 Pid    170 on mpi-multus-b300x8-worker-3 device  2 [0000:95:00] NVIDIA B300 SXM6 PC
+#  Rank 27 Group  0 Pid    171 on mpi-multus-b300x8-worker-3 device  3 [0000:9d:00] NVIDIA B300 SXM6 PC
+#  Rank 28 Group  0 Pid    174 on mpi-multus-b300x8-worker-3 device  4 [0000:a5:00] NVIDIA B300 SXM6 PC
+#  Rank 29 Group  0 Pid    178 on mpi-multus-b300x8-worker-3 device  5 [0000:ad:00] NVIDIA B300 SXM6 PC
+#  Rank 30 Group  0 Pid    181 on mpi-multus-b300x8-worker-3 device  6 [0000:b5:00] NVIDIA B300 SXM6 PC
+#  Rank 31 Group  0 Pid    184 on mpi-multus-b300x8-worker-3 device  7 [0000:bd:00] NVIDIA B300 SXM6 PC
+NCCL version 2.29.7+cuda13.2
+#
+#                                                              out-of-place                       in-place          
+#       size         count      type   redop    root     time   algbw   busbw #wrong     time   algbw   busbw #wrong
+#        (B)    (elements)                               (us)  (GB/s)  (GB/s)            (us)  (GB/s)  (GB/s)       
+           8             2     float     sum      -1    51.52    0.00    0.00      0    66.95    0.00    0.00      0
+          16             4     float     sum      -1    50.04    0.00    0.00      0    50.04    0.00    0.00      0
+          32             8     float     sum      -1    49.38    0.00    0.00      0    49.89    0.00    0.00      0
+          64            16     float     sum      -1    49.73    0.00    0.00      0    65.92    0.00    0.00      0
+         128            32     float     sum      -1    54.42    0.00    0.00      0    61.17    0.00    0.00      0
+         256            64     float     sum      -1    51.37    0.00    0.01      0    51.32    0.00    0.01      0
+         512           128     float     sum      -1    51.64    0.01    0.02      0    51.56    0.01    0.02      0
+        1024           256     float     sum      -1    52.84    0.02    0.04      0    51.92    0.02    0.04      0
+        2048           512     float     sum      -1    53.76    0.04    0.07      0    54.84    0.04    0.07      0
+        4096          1024     float     sum      -1    58.95    0.07    0.13      0    59.21    0.07    0.13      0
+        8192          2048     float     sum      -1    62.37    0.13    0.25      0    61.71    0.13    0.26      0
+       16384          4096     float     sum      -1    62.82    0.26    0.51      0    62.13    0.26    0.51      0
+       32768          8192     float     sum      -1    72.72    0.45    0.87      0    71.31    0.46    0.89      0
+       65536         16384     float     sum      -1    90.11    0.73    1.41      0    88.37    0.74    1.44      0
+      131072         32768     float     sum      -1    96.71    1.36    2.63      0    96.18    1.36    2.64      0
+      262144         65536     float     sum      -1    109.9    2.39    4.62      0    109.6    2.39    4.63      0
+      524288        131072     float     sum      -1    141.1    3.72    7.20      0    158.0    3.32    6.43      0
+     1048576        262144     float     sum      -1    205.2    5.11    9.90      0    214.7    4.88    9.46      0
+     2097152        524288     float     sum      -1    327.0    6.41   12.43      0    323.8    6.48   12.55      0
+     4194304       1048576     float     sum      -1    334.8   12.53   24.27      0    334.1   12.55   24.32      0
+     8388608       2097152     float     sum      -1    448.3   18.71   36.25      0    447.9   18.73   36.28      0
+    16777216       4194304     float     sum      -1    728.8   23.02   44.60      0    728.7   23.02   44.61      0
+    33554432       8388608     float     sum      -1   1429.5   23.47   45.48      0   1429.4   23.47   45.48      0
+    67108864      16777216     float     sum      -1   2849.5   23.55   45.63      0   2849.7   23.55   45.63      0
+   134217728      33554432     float     sum      -1   5339.1   25.14   48.71      0   5336.7   25.15   48.73      0
+   268435456      67108864     float     sum      -1    10640   25.23   48.88      0    10632   25.25   48.92      0
+   536870912     134217728     float     sum      -1    21296   25.21   48.84      0    21307   25.20   48.82      0
+  1073741824     268435456     float     sum      -1    42589   25.21   48.85      0    42583   25.22   48.85      0
+  2147483648     536870912     float     sum      -1    85214   25.20   48.83      0    85191   25.21   48.84      0
+  4294967296    1073741824     float     sum      -1   170313   25.22   48.86      0   170397   25.21   48.84      0
+  8589934592    2147483648     float     sum      -1   340593   25.22   48.86      0   340339   25.24   48.90      0
+ 17179869184    4294967296     float     sum      -1   680561   25.24   48.91      0   680288   25.25   48.93      0
+# Out of bounds values : 0 OK
+# Avg bus bandwidth    : 19.5831 
+#
+# Collective test concluded: all_reduce_perf
+```
+
+</details>
+</br>
+
+<details>
+<summary>4 B300x8 DOKS Workers - 2 Rails </summary>
+
+``` bash
+# kubectl apply -f nvidia-mn-doks/nccl-test-4-nodes-b300x8-2rails.yaml
+# kubectl delete mpijob mpi-multus-b300x8
+
+# kubectl logs -f mpi-multus-b300x8-launcher-rgnt6 
+Warning: Permanently added '[mpi-multus-b300x8-worker-1.mpi-multus-b300x8.default.svc]:2222' (ED25519) to the list of known hosts.
+Warning: Permanently added '[mpi-multus-b300x8-worker-2.mpi-multus-b300x8.default.svc]:2222' (ED25519) to the list of known hosts.
+Warning: Permanently added '[mpi-multus-b300x8-worker-0.mpi-multus-b300x8.default.svc]:2222' (ED25519) to the list of known hosts.
+Warning: Permanently added '[mpi-multus-b300x8-worker-3.mpi-multus-b300x8.default.svc]:2222' (ED25519) to the list of known hosts.
+# Collective test starting: all_reduce_perf
+# nThread 1 nGpus 1 minBytes 8 maxBytes 17179869184 step: 2(factor) warmup iters: 5 iters: 100 agg iters: 1 validation: 1 graph: 0
+#
+# Using devices
+#  Rank  0 Group  0 Pid    164 on mpi-multus-b300x8-worker-0 device  0 [0000:85:00] NVIDIA B300 SXM6 PC
+#  Rank  1 Group  0 Pid    165 on mpi-multus-b300x8-worker-0 device  1 [0000:8d:00] NVIDIA B300 SXM6 PC
+#  Rank  2 Group  0 Pid    166 on mpi-multus-b300x8-worker-0 device  2 [0000:95:00] NVIDIA B300 SXM6 PC
+#  Rank  3 Group  0 Pid    167 on mpi-multus-b300x8-worker-0 device  3 [0000:9d:00] NVIDIA B300 SXM6 PC
+#  Rank  4 Group  0 Pid    169 on mpi-multus-b300x8-worker-0 device  4 [0000:a5:00] NVIDIA B300 SXM6 PC
+#  Rank  5 Group  0 Pid    174 on mpi-multus-b300x8-worker-0 device  5 [0000:ad:00] NVIDIA B300 SXM6 PC
+#  Rank  6 Group  0 Pid    177 on mpi-multus-b300x8-worker-0 device  6 [0000:b5:00] NVIDIA B300 SXM6 PC
+#  Rank  7 Group  0 Pid    180 on mpi-multus-b300x8-worker-0 device  7 [0000:bd:00] NVIDIA B300 SXM6 PC
+#  Rank  8 Group  0 Pid    167 on mpi-multus-b300x8-worker-1 device  0 [0000:85:00] NVIDIA B300 SXM6 PC
+#  Rank  9 Group  0 Pid    168 on mpi-multus-b300x8-worker-1 device  1 [0000:8d:00] NVIDIA B300 SXM6 PC
+#  Rank 10 Group  0 Pid    169 on mpi-multus-b300x8-worker-1 device  2 [0000:95:00] NVIDIA B300 SXM6 PC
+#  Rank 11 Group  0 Pid    170 on mpi-multus-b300x8-worker-1 device  3 [0000:9d:00] NVIDIA B300 SXM6 PC
+#  Rank 12 Group  0 Pid    173 on mpi-multus-b300x8-worker-1 device  4 [0000:a5:00] NVIDIA B300 SXM6 PC
+#  Rank 13 Group  0 Pid    176 on mpi-multus-b300x8-worker-1 device  5 [0000:ad:00] NVIDIA B300 SXM6 PC
+#  Rank 14 Group  0 Pid    178 on mpi-multus-b300x8-worker-1 device  6 [0000:b5:00] NVIDIA B300 SXM6 PC
+#  Rank 15 Group  0 Pid    183 on mpi-multus-b300x8-worker-1 device  7 [0000:bd:00] NVIDIA B300 SXM6 PC
+#  Rank 16 Group  0 Pid    164 on mpi-multus-b300x8-worker-2 device  0 [0000:85:00] NVIDIA B300 SXM6 PC
+#  Rank 17 Group  0 Pid    165 on mpi-multus-b300x8-worker-2 device  1 [0000:8d:00] NVIDIA B300 SXM6 PC
+#  Rank 18 Group  0 Pid    166 on mpi-multus-b300x8-worker-2 device  2 [0000:95:00] NVIDIA B300 SXM6 PC
+#  Rank 19 Group  0 Pid    167 on mpi-multus-b300x8-worker-2 device  3 [0000:9d:00] NVIDIA B300 SXM6 PC
+#  Rank 20 Group  0 Pid    169 on mpi-multus-b300x8-worker-2 device  4 [0000:a5:00] NVIDIA B300 SXM6 PC
+#  Rank 21 Group  0 Pid    173 on mpi-multus-b300x8-worker-2 device  5 [0000:ad:00] NVIDIA B300 SXM6 PC
+#  Rank 22 Group  0 Pid    175 on mpi-multus-b300x8-worker-2 device  6 [0000:b5:00] NVIDIA B300 SXM6 PC
+#  Rank 23 Group  0 Pid    180 on mpi-multus-b300x8-worker-2 device  7 [0000:bd:00] NVIDIA B300 SXM6 PC
+#  Rank 24 Group  0 Pid    163 on mpi-multus-b300x8-worker-3 device  0 [0000:85:00] NVIDIA B300 SXM6 PC
+#  Rank 25 Group  0 Pid    164 on mpi-multus-b300x8-worker-3 device  1 [0000:8d:00] NVIDIA B300 SXM6 PC
+#  Rank 26 Group  0 Pid    165 on mpi-multus-b300x8-worker-3 device  2 [0000:95:00] NVIDIA B300 SXM6 PC
+#  Rank 27 Group  0 Pid    166 on mpi-multus-b300x8-worker-3 device  3 [0000:9d:00] NVIDIA B300 SXM6 PC
+#  Rank 28 Group  0 Pid    168 on mpi-multus-b300x8-worker-3 device  4 [0000:a5:00] NVIDIA B300 SXM6 PC
+#  Rank 29 Group  0 Pid    172 on mpi-multus-b300x8-worker-3 device  5 [0000:ad:00] NVIDIA B300 SXM6 PC
+#  Rank 30 Group  0 Pid    175 on mpi-multus-b300x8-worker-3 device  6 [0000:b5:00] NVIDIA B300 SXM6 PC
+#  Rank 31 Group  0 Pid    178 on mpi-multus-b300x8-worker-3 device  7 [0000:bd:00] NVIDIA B300 SXM6 PC
+NCCL version 2.29.7+cuda13.2
+#
+#                                                              out-of-place                       in-place          
+#       size         count      type   redop    root     time   algbw   busbw #wrong     time   algbw   busbw #wrong
+#        (B)    (elements)                               (us)  (GB/s)  (GB/s)            (us)  (GB/s)  (GB/s)       
+           8             2     float     sum      -1    50.81    0.00    0.00      0    50.40    0.00    0.00      0
+          16             4     float     sum      -1    49.00    0.00    0.00      0    48.98    0.00    0.00      0
+          32             8     float     sum      -1    49.09    0.00    0.00      0    49.64    0.00    0.00      0
+          64            16     float     sum      -1    49.77    0.00    0.00      0    50.12    0.00    0.00      0
+         128            32     float     sum      -1    50.27    0.00    0.00      0    50.49    0.00    0.00      0
+         256            64     float     sum      -1    50.98    0.01    0.01      0    51.00    0.01    0.01      0
+         512           128     float     sum      -1    51.25    0.01    0.02      0    52.02    0.01    0.02      0
+        1024           256     float     sum      -1    52.40    0.02    0.04      0    52.47    0.02    0.04      0
+        2048           512     float     sum      -1    54.80    0.04    0.07      0    55.23    0.04    0.07      0
+        4096          1024     float     sum      -1    59.80    0.07    0.13      0    58.81    0.07    0.13      0
+        8192          2048     float     sum      -1    60.22    0.14    0.26      0    59.54    0.14    0.27      0
+       16384          4096     float     sum      -1    61.83    0.26    0.51      0    60.88    0.27    0.52      0
+       32768          8192     float     sum      -1    65.56    0.50    0.97      0    64.71    0.51    0.98      0
+       65536         16384     float     sum      -1    67.23    0.97    1.89      0    67.21    0.98    1.89      0
+      131072         32768     float     sum      -1    77.51    1.69    3.28      0    75.47    1.74    3.36      0
+      262144         65536     float     sum      -1    92.43    2.84    5.50      0    91.62    2.86    5.54      0
+      524288        131072     float     sum      -1    101.3    5.18   10.03      0    100.1    5.24   10.15      0
+     1048576        262144     float     sum      -1    115.5    9.08   17.59      0    115.3    9.10   17.63      0
+     2097152        524288     float     sum      -1    149.7   14.01   27.15      0    149.6   14.02   27.16      0
+     4194304       1048576     float     sum      -1    223.8   18.74   36.31      0    223.1   18.80   36.43      0
+     8388608       2097152     float     sum      -1    563.3   14.89   28.85      0    414.9   20.22   39.17      0
+    16777216       4194304     float     sum      -1    459.8   36.49   70.70      0    430.8   38.94   75.45      0
+    33554432       8388608     float     sum      -1    499.1   67.23  130.26      0    474.6   70.69  136.97      0
+    67108864      16777216     float     sum      -1    714.1   93.98  182.09      0    662.4  101.32  196.30      0
+   134217728      33554432     float     sum      -1   1018.6  131.76  255.29      0    977.7  137.28  265.98      0
+   268435456      67108864     float     sum      -1   1604.8  167.27  324.08      0   1619.0  165.80  321.24      0
+   536870912     134217728     float     sum      -1   2790.2  192.41  372.80      0   2791.6  192.32  372.62      0
+  1073741824     268435456     float     sum      -1   5389.3  199.23  386.02      0   5387.4  199.31  386.16      0
+  2147483648     536870912     float     sum      -1    10725  200.24  387.96      0    10722  200.30  388.07      0
+  4294967296    1073741824     float     sum      -1    21521  199.57  386.67      0    21454  200.20  387.88      0
+  8589934592    2147483648     float     sum      -1    42825  200.58  388.63      0    42781  200.79  389.02      0
+ 17179869184    4294967296     float     sum      -1    85418  201.13  389.68      0    85533  200.86  389.16      0
+# Out of bounds values : 0 OK
+# Avg bus bandwidth    : 107.173 
+#
+# Collective test concluded: all_reduce_perf
+```
+
+</details>
+</br>
+
 ## Documentation and Resources
-
-
-
-
-
