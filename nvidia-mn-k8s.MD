@@ -980,7 +980,7 @@ kubectl describe network-attachment-definitions
 
 ### Application Deployment
 
-Create a Kubernetes ConfigMap that stores [nvidia-mn-doks/p2p_bw_test.py](amd-mn-doks/p2p_bw_test.py). The ConfigMap will be mounted into two Pods, allowing both Pods to access the same script for RDMA/RoCE testing.
+Create a Kubernetes ConfigMap that stores [nvidia-mn-doks/p2p_bw_test.py](nvidia-mn-doks/p2p_bw_test.py). The ConfigMap will be mounted into two Pods, allowing both Pods to access the same script for RDMA/RoCE testing.
 
 ``` bash
 # Mount the test script into the Pods.
@@ -991,6 +991,150 @@ Create a Kubernetes ConfigMap that stores [nvidia-mn-doks/p2p_bw_test.py](amd-mn
 ```
 
 Build and deploy the Kubernetes manifest [nvidia-mn-doks/mn-ipvlan-6pods-3nodes.yaml](nvidia-mn-doks/mn-ipvlan-6pods-3nodes.yaml) to create four 6-GPU Pods across three DOKS workers with RDMA sharing enabled on all RDMA devices. 
+
+<details>
+<summary>mn-ipvlan-6pods-3nodes.yaml</summary>
+
+``` yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mn-ipvlan
+spec:
+  replicas: 6
+  selector:
+    matchLabels:
+      app: mn-ipvlan
+  template:
+    metadata:
+      labels:
+        app: mn-ipvlan
+      annotations:
+        k8s.v1.cni.cncf.io/networks: >-
+          ipvlan-fabric0@net0,
+          ipvlan-fabric1@net1,
+          ipvlan-fabric2@net2,
+          ipvlan-fabric3@net3,
+          ipvlan-fabric4@net4,
+          ipvlan-fabric5@net5,
+          ipvlan-fabric6@net6,
+          ipvlan-fabric7@net7,
+          ipvlan-fabric8@net8,
+          ipvlan-fabric9@net9,
+          ipvlan-fabric10@net10,
+          ipvlan-fabric11@net11,
+          ipvlan-fabric12@net12,
+          ipvlan-fabric13@net13,
+          ipvlan-fabric14@net14,
+          ipvlan-fabric15@net15
+    spec:
+      restartPolicy: Always
+
+      nodeSelector:
+        doks.digitalocean.com/gpu-brand: nvidia
+
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+
+      volumes:
+        - name: temp-hf-cache
+          hostPath:
+            path: /root/.cache/huggingface
+            type: DirectoryOrCreate
+
+        - name: dshm 
+          emptyDir:
+            medium: Memory
+            sizeLimit: 128Gi
+
+        - name: temp-python-script       
+          configMap:
+            name: mn-python-script
+
+      containers:
+
+        - name: server
+          image: pytorch/pytorch:2.13.0-cuda13.0-cudnn9-devel
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http-example
+
+          command: ["/bin/bash", "-lc"]
+          args:
+            - |
+             set -ex
+          
+             apt update
+             apt install -y iproute2 iputils-ping infiniband-diags ibverbs-utils net-tools
+             
+
+             exec sleep infinity 
+ 
+          securityContext:
+
+            capabilities:
+              add:
+              - IPC_LOCK
+
+          volumeMounts:
+            - name: temp-hf-cache
+              mountPath: /root/.cache/huggingface
+
+            - name: dshm
+              mountPath: /dev/shm
+
+            - name: temp-python-script
+              mountPath: /workspace/p2p_bw_test.py
+              subPath: p2p_bw_test.py
+
+          resources:
+            limits:
+              nvidia.com/gpu: "4"
+              rdma/fabric0: 10
+              rdma/fabric1: 10
+              rdma/fabric2: 10
+              rdma/fabric3: 10
+              rdma/fabric4: 10
+              rdma/fabric5: 10
+              rdma/fabric6: 10
+              rdma/fabric7: 10
+              rdma/fabric8: 10
+              rdma/fabric9: 10
+              rdma/fabric10: 10
+              rdma/fabric11: 10
+              rdma/fabric12: 10
+              rdma/fabric13: 10
+              rdma/fabric13: 10
+              rdma/fabric14: 10
+              rdma/fabric15: 10
+            requests:
+              nvidia.com/gpu: "4"
+              rdma/fabric0: 10
+              rdma/fabric1: 10
+              rdma/fabric2: 10
+              rdma/fabric3: 10
+              rdma/fabric4: 10
+              rdma/fabric5: 10
+              rdma/fabric6: 10
+              rdma/fabric7: 10
+              rdma/fabric8: 10
+              rdma/fabric9: 10
+              rdma/fabric10: 10
+              rdma/fabric11: 10
+              rdma/fabric12: 10
+              rdma/fabric13: 10
+              rdma/fabric13: 10
+              rdma/fabric14: 10
+              rdma/fabric15: 10
+```
+
+</details>
+</br>
+
+
 
 <details>
 <summary>B300x8 DOKS</summary>
@@ -1364,7 +1508,7 @@ root@rs-mn-b300x8-pool-37ylku:~# ibv_devinfo -v | grep GID
                         GID[  0]:               fe80:0000:0000:0000:ac3a:e203:00bc:912f
                         GID[  0]:               fe80:0000:0000:0000:ac3a:e203:00bc:9130
                         GID[  0]:               fe80:0000:0000:0000:ac3a:e203:00bc:9131
-
+```
 </details>
 </br>
 
